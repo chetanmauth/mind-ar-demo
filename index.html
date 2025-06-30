@@ -28,59 +28,59 @@
       }
     </style>
   </head>
-  <body>
-    <a-scene
-      id="ar-scene"
-      mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiScanning: true; uiLoading: true;"
-      vr-mode-ui="enabled: false"
-      device-orientation-permission-ui="enabled: true"
-      embedded
-    >
-      <!-- Camera -->
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-      <!-- Marker + Content -->
-      <a-entity mindar-image-target="targetIndex: 0">
-        <a-image 
-    id="invite-image"
-    src="./assets/sat2farm.png"
-    position="0 0 0"
-    rotation="-90 0 0"
-    width="1"
-    height="0.75"
-    transparent="true"
-    opacity="0"
-    scale="0 0 0"
+ <body>
+  <a-scene
+    id="ar-scene"
+    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiScanning: true; uiLoading: true;"
+    embedded
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: true"
+    renderer="colorManagement: true, physicallyCorrectLights: true;"
   >
-    <!-- Fade in -->
-    <a-animation
-      attribute="opacity"
-      from="0" to="1"
-      dur="1000"
-      easing="ease-in-out"
-      begin="visible"
-    ></a-animation>
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- Scale up -->
-    <a-animation
-      attribute="scale"
-      from="0 0 0" to="1 1 1"
-      dur="1000"
-      easing="ease-out-back"
-      begin="visible"
-    ></a-animation>
+    <a-entity mindar-image-target="targetIndex: 0">
+      <a-image 
+        id="invite-image"
+        src="./assets/sat2farm.png"
+        position="0 0 0"
+        rotation="-90 0 0"
+        width="1"
+        height="0.75"
+        transparent="true"
+        opacity="0"
+        scale="0 0 0"
+      >
+        <!-- Fade-in animation -->
+        <a-animation
+          attribute="opacity"
+          from="0" to="1"
+          dur="1000"
+          easing="ease-in-out"
+          begin="visible"
+        ></a-animation>
 
-    <!-- Bounce up a bit -->
-    <a-animation
-      attribute="position"
-      from="0 0 0" to="0 0.1 0"
-      dur="500"
-      direction="alternate"
-      repeat="1"
-      begin="visible"
-    ></a-animation>
-  </a-image>
-      </a-entity>
-    </a-scene>
-  </body>
+        <!-- Scale up -->
+        <a-animation
+          attribute="scale"
+          from="0 0 0" to="1 1 1"
+          dur="1000"
+          easing="ease-out-back"
+          begin="visible"
+        ></a-animation>
+
+        <!-- Bounce upward -->
+        <a-animation
+          attribute="position"
+          from="0 0 0" to="0 0.1 0"
+          dur="500"
+          direction="alternate"
+          repeat="1"
+          begin="visible"
+        ></a-animation>
+      </a-image>
+    </a-entity>
+  </a-scene>
+</body>
+
 </html>
