@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AR Invitation</title>
+
+  <!-- MindAR CSS from CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
+
+  <!-- Basic styling -->
+  <style>
+    body, html { margin: 0; overflow: hidden; }
+    canvas { position: absolute; top: 0; left: 0; }
+  </style>
+</head>
+<body>
+  <!-- Required JS files -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.js"></script>
+
+  <!-- AR container -->
+  <div id="ar-container"></div>
+
+  <!-- Main AR logic -->
+  <script>
+  const startAR = async () => {
+    const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+      container: document.body,
+      imageTargetSrc: "./assets/targets.mind",
+    });
+
+    const { renderer, scene, camera } = mindarThree;
+    const anchor = mindarThree.addAnchor(0);
+
+    // Load the image as a texture
+    const loader = new THREE.TextureLoader();
+    loader.load('./assets/invite.png', (texture) => {
+      const geometry = new THREE.PlaneGeometry(1, 0.75); // Adjust size to fit your image ratio
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+      const imagePlane = new THREE.Mesh(geometry, material);
+      anchor.group.add(imagePlane);
+    });
+
+    await mindarThree.start();
+    renderer.setAnimationLoop(() => {
+      renderer.render(scene, camera);
+    });
+  };
+
+  startAR();
+</script>
+
+</body>
+</html>
