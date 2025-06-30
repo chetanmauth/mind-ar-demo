@@ -100,26 +100,25 @@
 
   <!-- JS -->
 <script>
-  document.addEventListener("DOMContentLoaded", async () => {
+  document.addEventListener("DOMContentLoaded", () => {
     const startScreen = document.getElementById("start-screen");
     const startButton = document.getElementById("start-button");
     const sceneEl = document.querySelector("a-scene");
 
-    startButton.addEventListener("click", async () => {
+    startButton.addEventListener("click", () => {
       startScreen.style.display = "none";
 
-      // Wait a tiny bit to ensure scene is ready
-      setTimeout(async () => {
+      const waitForMindAR = setInterval(() => {
         const mindarComponent = sceneEl.components["mindar-image"];
         if (mindarComponent) {
-          await mindarComponent.start();
-        } else {
-          console.error("mindar-image component not found");
+          clearInterval(waitForMindAR);
+          mindarComponent.start(); // start AR tracking
         }
-      }, 100); // small delay to ensure proper load
+      }, 100); // check every 100ms
     });
   });
 </script>
+
 
 
 </body>
