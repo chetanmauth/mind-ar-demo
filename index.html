@@ -6,7 +6,7 @@
   <title>AR Invite</title>
   <link rel="icon" href="data:," />
 
-  <!-- Scripts -->
+  <!-- A-Frame & MindAR Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
@@ -20,41 +20,25 @@
       height: 100%;
       overflow: hidden;
       background-color: black;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
-    #start-screen {
+    #ar-scene {
       position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      background: black;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10;
-      flex-direction: column;
-    }
-
-    #start-button {
-      font-size: 1.2em;
-      padding: 1em 2em;
-      background: #00bcd4;
-      border: none;
-      border-radius: 10px;
-      color: white;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
     }
   </style>
 </head>
 <body>
-
-  <!-- Start Screen -->
-  <div id="start-screen">
-    <p style="color:white; font-size: 1.5em;">Tap to start AR</p>
-    <button id="start-button">Start</button>
-  </div>
-
   <!-- AR Scene -->
   <a-scene
-    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: false; uiScanning: true; uiLoading: true;"
+    id="ar-scene"
+    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiScanning: true; uiLoading: true;"
     embedded
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: true"
@@ -73,30 +57,12 @@
         opacity="0"
         scale="0 0 0"
       >
+        <!-- Animations -->
         <a-animation attribute="opacity" from="0" to="1" dur="1000" begin="visible"></a-animation>
         <a-animation attribute="scale" from="0 0 0" to="1 1 1" dur="1000" begin="visible"></a-animation>
         <a-animation attribute="position" from="0 0 0" to="0 0.1 0" dur="500" direction="alternate" repeat="1" begin="visible"></a-animation>
       </a-image>
     </a-entity>
   </a-scene>
-
-  <!-- Script -->
-  <script>
-    const startButton = document.getElementById("start-button");
-    const startScreen = document.getElementById("start-screen");
-    const scene = document.querySelector("a-scene");
-
-    startButton.addEventListener("click", () => {
-      startScreen.style.display = "none";
-
-      const waitForMindAR = setInterval(() => {
-        const mindarComponent = scene.components["mindar-image"];
-        if (mindarComponent) {
-          clearInterval(waitForMindAR);
-          mindarComponent.start();
-        }
-      }, 100);
-    });
-  </script>
 </body>
 </html>
