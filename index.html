@@ -1,32 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
- <head>
+<head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0" />
   <title>AR Invite</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" href="data:," />
 
+  <!-- A-Frame & MindAR Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-
-  <script>
-  const startAR = () => {
-    const sceneEl = document.querySelector("a-scene");
-
-    sceneEl.addEventListener("loaded", async () => {
-      const mindarComponent = sceneEl.components["mindar-image"];
-      await mindarComponent.start();
-    });
-  };
-
-  document.getElementById('start-button').addEventListener('click', () => {
-    document.getElementById('start-screen').style.display = 'none';
-    startAR();
-  });
-</script>
-
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
 
+  <!-- Styles -->
   <style>
     html, body {
       margin: 0;
@@ -47,33 +32,40 @@
       width: 100vw;
       height: 100vh;
     }
-  </style>
-</head>
 
-<body>
-  <div id="start-screen" style="
-    position: fixed;
-    top: 0; left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: black;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10;
-    flex-direction: column;
-  ">
-    <p style="color: white; font-size: 1.5em;">Tap to start AR experience</p>
-    <button id="start-button" style="
+    #start-screen {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      flex-direction: column;
+    }
+
+    #start-button {
       padding: 1em 2em;
       font-size: 1.2em;
       background: #00bcd4;
       color: white;
       border: none;
       border-radius: 10px;
-    ">Start</button>
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Tap to Start Screen -->
+  <div id="start-screen">
+    <p style="color: white; font-size: 1.5em;">Tap to start AR experience</p>
+    <button id="start-button">Start</button>
   </div>
 
+  <!-- AR Scene -->
   <a-scene
     id="ar-scene"
     mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: false; uiScanning: true; uiLoading: true;"
@@ -96,21 +88,32 @@
         opacity="0"
         scale="0 0 0"
       >
+        <!-- Fade-in -->
         <a-animation attribute="opacity" from="0" to="1" dur="1000" easing="ease-in-out" begin="visible"></a-animation>
+        <!-- Scale in -->
         <a-animation attribute="scale" from="0 0 0" to="1 1 1" dur="1000" easing="ease-out-back" begin="visible"></a-animation>
+        <!-- Bounce -->
         <a-animation attribute="position" from="0 0 0" to="0 0.1 0" dur="500" direction="alternate" repeat="1" begin="visible"></a-animation>
       </a-image>
     </a-entity>
   </a-scene>
 
+  <!-- JS -->
   <script>
-    document.getElementById('start-button').addEventListener('click', async () => {
-      document.getElementById('start-screen').style.display = 'none';
-      const scene = document.querySelector("a-scene");
-      await scene.components["mindar-image"].start();
+    document.addEventListener("DOMContentLoaded", () => {
+      const startScreen = document.getElementById("start-screen");
+      const startButton = document.getElementById("start-button");
+      const sceneEl = document.querySelector("a-scene");
+
+      startButton.addEventListener("click", () => {
+        startScreen.style.display = "none";
+
+        sceneEl.addEventListener("loaded", async () => {
+          const mindarComponent = sceneEl.components["mindar-image"];
+          await mindarComponent.start();
+        });
+      });
     });
   </script>
 </body>
-
-
 </html>
