@@ -8,6 +8,23 @@
 
   <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+
+  <script>
+  const startAR = () => {
+    const sceneEl = document.querySelector("a-scene");
+
+    sceneEl.addEventListener("loaded", async () => {
+      const mindarComponent = sceneEl.components["mindar-image"];
+      await mindarComponent.start();
+    });
+  };
+
+  document.getElementById('start-button').addEventListener('click', () => {
+    document.getElementById('start-screen').style.display = 'none';
+    startAR();
+  });
+</script>
+
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
 
   <style>
