@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>MindAR AR Invite</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>AR Invite Fullscreen</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="icon" href="data:," />
 
-  <!-- MindAR + A-Frame -->
+  <!-- A-Frame + MindAR -->
   <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
@@ -15,18 +15,33 @@
     html, body {
       margin: 0;
       padding: 0;
+      background-color: black;
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background-color: black;
+      touch-action: none;
     }
 
     #ar-scene {
-      width: 100vw;
-      height: 100vh;
       position: fixed;
       top: 0;
       left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+    }
+
+    /* Fix canvas sizing issue */
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+    }
+
+    video {
+      object-fit: cover !important;
+      width: 100% !important;
+      height: 100% !important;
     }
   </style>
 </head>
@@ -35,9 +50,9 @@
 <a-scene
   id="ar-scene"
   mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiScanning: true; uiLoading: true;"
+  embedded
   vr-mode-ui="enabled: false"
   device-orientation-permission-ui="enabled: true"
-  embedded
 >
   <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
@@ -56,7 +71,6 @@
 </a-scene>
 
 <script>
-  // Wait for marker detection
   AFRAME.registerComponent('animate-on-found', {
     init: function () {
       const image = document.getElementById('invite-image');
@@ -69,7 +83,7 @@
             dur: 1000,
             easing: 'easeOutBack'
           });
-        }, 1000); // Delay of 1s
+        }, 1000); // Delay animation by 1 second
       });
     }
   });
