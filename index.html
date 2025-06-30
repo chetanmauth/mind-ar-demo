@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MindAR AR Invite</title>
+  <title>AR Invitation</title>
 
   <!-- MindAR CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
@@ -16,11 +16,9 @@
       overflow: hidden;
       background-color: black;
     }
-
     #ar-container {
       width: 100vw;
       height: 100vh;
-      position: relative;
     }
   </style>
 </head>
@@ -31,15 +29,30 @@
     import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
     import { MindARThree } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js';
 
-    const startAR = async () => {
+    const start = async () => {
       const mindarThree = new MindARThree({
         container: document.querySelector("#ar-container"),
-        imageTargetSrc: "./assets/targets.mind" // make sure this path is correct
+        imageTargetSrc: "./assets/targets.mind"
       });
 
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
       const loader = new THREE.TextureLoader();
-      loader.load('./assets/sat2farm.png', (texture) => {
-        const geometry = n
+      loader.load("./assets/sat2farm.png", (texture) => {
+        const geometry = new THREE.PlaneGeometry(1, 0.75);
+        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+        const mesh = new THREE.Mesh(geometry, material);
+        anchor.group.add(mesh);
+      });
+
+      await mindarThree.start();
+      renderer.setAnimationLoop(() => {
+        renderer.render(scene, camera);
+      });
+    };
+
+    start();
+  </script>
+</body>
+</html>
