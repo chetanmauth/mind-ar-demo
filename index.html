@@ -2,15 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>AR Invitation</title>
 
   <!-- MindAR CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
 
   <style>
-    body, html { margin: 0; overflow: hidden; }
-    canvas { position: absolute; top: 0; left: 0; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background-color: black;
+    }
+
+    #ar-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
   </style>
 </head>
 <body>
@@ -23,7 +44,7 @@
   <script>
     const startAR = async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.body,
+        container: document.querySelector("#ar-container"),
         imageTargetSrc: "./assets/targets.mind", // Ensure this exists!
       });
 
