@@ -1,33 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>AR Invitation (Stable)</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+ <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>AR Invite</title>
+  <link rel="icon" href="data:,">
 
-    <!-- Favicon fix -->
-    <link rel="icon" href="data:,">
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
 
-    <!-- MindAR + A-Frame -->
-    <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background-color: black;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
+    #ar-scene {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
 
-    <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        height: 100%;
-      }
-      #ar-scene {
-        width: 100vw;
-        height: 100vh;
-        position: fixed;
-      }
-    </style>
-  </head>
  <body>
   <a-scene
     id="ar-scene"
