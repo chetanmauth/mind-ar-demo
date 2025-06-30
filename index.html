@@ -8,7 +8,7 @@
   <!-- MindAR CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
 
-  <!-- Prevent favicon 404 -->
+  <!-- Prevent favicon error -->
   <link rel="icon" href="data:,">
 
   <style>
@@ -16,7 +16,7 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background-color: #000;
+      background: #000;
     }
 
     #ar-container {
@@ -46,19 +46,18 @@
     const startAR = async () => {
       const mindarThree = new MindARThree({
         container: document.querySelector("#ar-container"),
-        imageTargetSrc: './assets/targets.mind' // Replace with your actual target file
+        imageTargetSrc: './assets/targets.mind'
       });
 
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load your invitation image
       const loader = new THREE.TextureLoader();
       loader.load('./assets/sat2farm.png', (texture) => {
         const geometry = new THREE.PlaneGeometry(1, 0.75);
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-        const image = new THREE.Mesh(geometry, material);
-        anchor.group.add(image);
+        const mesh = new THREE.Mesh(geometry, material);
+        anchor.group.add(mesh);
       });
 
       await mindarThree.start();
