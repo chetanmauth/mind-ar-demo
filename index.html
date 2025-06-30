@@ -42,12 +42,44 @@
       <!-- Marker + Content -->
       <a-entity mindar-image-target="targetIndex: 0">
         <a-image 
-          src="./assets/sat2farm.png"
-          position="-90 0 0"
-          width="1"
-          height="0.75"
-          transparent="true"
-        ></a-image>
+    id="invite-image"
+    src="./assets/sat2farm.png"
+    position="0 0 0"
+    rotation="-90 0 0"
+    width="1"
+    height="0.75"
+    transparent="true"
+    opacity="0"
+    scale="0 0 0"
+  >
+    <!-- Fade in -->
+    <a-animation
+      attribute="opacity"
+      from="0" to="1"
+      dur="1000"
+      easing="ease-in-out"
+      begin="visible"
+    ></a-animation>
+
+    <!-- Scale up -->
+    <a-animation
+      attribute="scale"
+      from="0 0 0" to="1 1 1"
+      dur="1000"
+      easing="ease-out-back"
+      begin="visible"
+    ></a-animation>
+
+    <!-- Bounce up a bit -->
+    <a-animation
+      attribute="position"
+      from="0 0 0" to="0 0.1 0"
+      dur="500"
+      direction="alternate"
+      repeat="1"
+      begin="visible"
+    ></a-animation>
+  </a-image>
       </a-entity>
     </a-scene>
   </body>
