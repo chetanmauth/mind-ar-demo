@@ -7,8 +7,6 @@
 
   <!-- MindAR CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
-
-  <!-- Prevent favicon error -->
   <link rel="icon" href="data:,">
 
   <style>
@@ -25,23 +23,13 @@
       position: relative;
     }
   </style>
-
-  <!-- Import Maps-->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
-        "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"
-      }
-    }
-  </script>
 </head>
 <body>
   <div id="ar-container"></div>
 
   <script type="module">
-    import * as THREE from 'three';
-    import { MindARThree } from 'mindar-image-three';
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
+    import { MindARThree } from "https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js";
 
     const startAR = async () => {
       const mindarThree = new MindARThree({
