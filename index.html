@@ -33,10 +33,33 @@
   </style>
 </head>
 
- <body>
+<body>
+  <div id="start-screen" style="
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    flex-direction: column;
+  ">
+    <p style="color: white; font-size: 1.5em;">Tap to start AR experience</p>
+    <button id="start-button" style="
+      padding: 1em 2em;
+      font-size: 1.2em;
+      background: #00bcd4;
+      color: white;
+      border: none;
+      border-radius: 10px;
+    ">Start</button>
+  </div>
+
   <a-scene
     id="ar-scene"
-    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiScanning: true; uiLoading: true;"
+    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: false; uiScanning: true; uiLoading: true;"
     embedded
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: true"
@@ -56,36 +79,21 @@
         opacity="0"
         scale="0 0 0"
       >
-        <!-- Fade-in animation -->
-        <a-animation
-          attribute="opacity"
-          from="0" to="1"
-          dur="1000"
-          easing="ease-in-out"
-          begin="visible"
-        ></a-animation>
-
-        <!-- Scale up -->
-        <a-animation
-          attribute="scale"
-          from="0 0 0" to="1 1 1"
-          dur="1000"
-          easing="ease-out-back"
-          begin="visible"
-        ></a-animation>
-
-        <!-- Bounce upward -->
-        <a-animation
-          attribute="position"
-          from="0 0 0" to="0 0.1 0"
-          dur="500"
-          direction="alternate"
-          repeat="1"
-          begin="visible"
-        ></a-animation>
+        <a-animation attribute="opacity" from="0" to="1" dur="1000" easing="ease-in-out" begin="visible"></a-animation>
+        <a-animation attribute="scale" from="0 0 0" to="1 1 1" dur="1000" easing="ease-out-back" begin="visible"></a-animation>
+        <a-animation attribute="position" from="0 0 0" to="0 0.1 0" dur="500" direction="alternate" repeat="1" begin="visible"></a-animation>
       </a-image>
     </a-entity>
   </a-scene>
+
+  <script>
+    document.getElementById('start-button').addEventListener('click', async () => {
+      document.getElementById('start-screen').style.display = 'none';
+      const scene = document.querySelector("a-scene");
+      await scene.components["mindar-image"].start();
+    });
+  </script>
 </body>
+
 
 </html>
