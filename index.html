@@ -6,18 +6,17 @@
   <title>AR Invite</title>
   <link rel="icon" href="data:," />
 
-  <!-- A-Frame & MindAR Scripts -->
+  <!-- MindAR + A-Frame -->
   <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
 
-  <!-- Styles -->
   <style>
     html, body {
       margin: 0;
       padding: 0;
-      height: 100%;
       width: 100%;
+      height: 100%;
       overflow: hidden;
       background-color: black;
       touch-action: none;
@@ -32,43 +31,13 @@
       width: 100vw;
       height: 100vh;
     }
-
-    #start-screen {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: black;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10;
-      flex-direction: column;
-    }
-
-    #start-button {
-      padding: 1em 2em;
-      font-size: 1.2em;
-      background: #00bcd4;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      margin-top: 10px;
-    }
   </style>
 </head>
-
 <body>
-  <!-- Tap to Start Screen -->
-  <div id="start-screen">
-    <p style="color: white; font-size: 1.5em;">Tap to start AR experience</p>
-    <button id="start-button">Start</button>
-  </div>
-
   <!-- AR Scene -->
   <a-scene
     id="ar-scene"
-    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: false; uiScanning: true; uiLoading: true;"
+    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiScanning: true; uiLoading: true;"
     embedded
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: true"
@@ -88,38 +57,12 @@
         opacity="0"
         scale="0 0 0"
       >
-        <!-- Fade-in -->
+        <!-- Animations -->
         <a-animation attribute="opacity" from="0" to="1" dur="1000" easing="ease-in-out" begin="visible"></a-animation>
-        <!-- Scale in -->
         <a-animation attribute="scale" from="0 0 0" to="1 1 1" dur="1000" easing="ease-out-back" begin="visible"></a-animation>
-        <!-- Bounce -->
         <a-animation attribute="position" from="0 0 0" to="0 0.1 0" dur="500" direction="alternate" repeat="1" begin="visible"></a-animation>
       </a-image>
     </a-entity>
   </a-scene>
-
-  <!-- JS -->
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const startScreen = document.getElementById("start-screen");
-    const startButton = document.getElementById("start-button");
-    const sceneEl = document.querySelector("a-scene");
-
-    startButton.addEventListener("click", () => {
-      startScreen.style.display = "none";
-
-      const waitForMindAR = setInterval(() => {
-        const mindarComponent = sceneEl.components["mindar-image"];
-        if (mindarComponent) {
-          clearInterval(waitForMindAR);
-          mindarComponent.start(); // start AR tracking
-        }
-      }, 100); // check every 100ms
-    });
-  });
-</script>
-
-
-
 </body>
 </html>
