@@ -8,19 +8,32 @@
   <!-- MindAR CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
 
+  <!-- Prevent favicon 404 -->
+  <link rel="icon" href="data:,">
+
   <style>
-    body, html { margin: 0; overflow: hidden; background: #000; }
-    #ar-container { width: 100vw; height: 100vh; position: relative; }
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #000;
+    }
+
+    #ar-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
   </style>
 
-  <!-- Import map for ESModules -->
+  <!-- Import Maps -->
   <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
-      "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
+        "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"
+      }
     }
-  }
   </script>
 </head>
 <body>
@@ -33,20 +46,19 @@
     const startAR = async () => {
       const mindarThree = new MindARThree({
         container: document.querySelector("#ar-container"),
-        imageTargetSrc: './assets/targets.mind', // Make sure this exists!
+        imageTargetSrc: './assets/targets.mind' // Replace with your actual target file
       });
 
       const { renderer, scene, camera } = mindarThree;
-
       const anchor = mindarThree.addAnchor(0);
 
-      // Load and display your invitation image
+      // Load your invitation image
       const loader = new THREE.TextureLoader();
       loader.load('./assets/sat2farm.png', (texture) => {
         const geometry = new THREE.PlaneGeometry(1, 0.75);
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-        const imagePlane = new THREE.Mesh(geometry, material);
-        anchor.group.add(imagePlane);
+        const image = new THREE.Mesh(geometry, material);
+        anchor.group.add(image);
       });
 
       await mindarThree.start();
