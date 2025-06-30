@@ -2,94 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AR Invite Fullscreen</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>AR Invite</title>
   <link rel="icon" href="data:," />
-
-  <!-- A-Frame + MindAR -->
-  <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
-
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      background-color: black;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      touch-action: none;
-    }
-
-    #ar-scene {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 0;
-    }
-
-    /* Fix canvas sizing issue */
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover !important;
-    }
-
-    video {
-      object-fit: cover !important;
-      width: 100% !important;
-      height: 100% !important;
-    }
+    body, html { margin:0; padding:0; overflow:hidden; background:#000; width:100%; height:100%; }
+    #ar-container { position:fixed; top:0; left:0; width:100%; height:100%; }
   </style>
 </head>
 <body>
+  <div id="ar-container"></div>
 
-<a-scene
-  id="ar-scene"
-  mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiScanning: true; uiLoading: true;"
-  embedded
-  vr-mode-ui="enabled: false"
-  device-orientation-permission-ui="enabled: true"
->
-  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"></script>
+  <script>
+    document.body.addEventListener('click', start); // Request user gesture
 
-  <a-entity mindar-image-target="targetIndex: 0" id="target">
-    <a-image 
-      id="invite-image"
-      src="./assets/sat2farm.png"
-      position="0 0 0"
-      rotation="90 0 0"
-      width="1"
-      height="0.75"
-      scale="0 0 0"
-      transparent="true"
-    ></a-image>
-  </a-entity>
-</a-scene>
-
-<script>
-  AFRAME.registerComponent('animate-on-found', {
-    init: function () {
-      const image = document.getElementById('invite-image');
-      this.el.addEventListener('targetFound', () => {
-        setTimeout(() => {
-          image.setAttribute('animation__scale', {
-            property: 'scale',
-            from: '0 0 0',
-            to: '1 1 1',
-            dur: 1000,
-            easing: 'easeOutBack'
-          });
-        }, 1000); // Delay animation by 1 second
+    async function start() {
+      document.body.removeEventListener('click', start);
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+        container: document.getElementById("ar-container"),
+        imageTargetSrc: "./assets/targets.mind"
       });
+
+      const { scene, renderer, camera } = mindarThree;
+      const anchor = mindarThree.addAnchor(0);
+
+      const loader = new THREE.TextureLoader();
+      loader.load("./assets/sat2farm.png", (tex) => {
+        const plane = new THREE.PlaneGeometry(1, 0.75);
+        const mat = new THREE.MeshBasicMaterial({ map: tex, transparent:true });
+        const mesh = new THREE.Mesh(plane, mat);
+        mesh.rotation.x = -Math.PI / 2; // stand upright
+        mesh.scale.set(0,0,0);
+        anchor.group.add(mesh);
+
+        anchor.onTargetFound = () => {
+          setTimeout(() => {
+            mesh.scale.set(1,1,1); // zoom in after 1s
+          }, 1000);
+        };
+      });
+
+      await mindarThree.start();
+      renderer.setAnimationLoop(() => renderer.render(scene, camera));
     }
-  });
-
-  document.querySelector('#target').setAttribute('animate-on-found', '');
-</script>
-
+  </script>
 </body>
 </html>
