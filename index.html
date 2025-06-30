@@ -99,21 +99,34 @@
   </a-scene>
 
   <!-- JS -->
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const startScreen = document.getElementById("start-screen");
-      const startButton = document.getElementById("start-button");
-      const sceneEl = document.querySelector("a-scene");
+ <script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const startScreen = document.getElementById("start-screen");
+    const startButton = document.getElementById("start-button");
+    const sceneEl = document.querySelector("a-scene");
 
-      startButton.addEventListener("click", () => {
-        startScreen.style.display = "none";
+    let mindarReady = false;
 
-        sceneEl.addEventListener("loaded", async () => {
-          const mindarComponent = sceneEl.components["mindar-image"];
-          await mindarComponent.start();
-        });
-      });
+    // Prepare MindAR start only after a-scene has loaded
+    sceneEl.addEventListener("loaded", () => {
+      mindarReady = true;
     });
-  </script>
+
+    startButton.addEventListener("click", async () => {
+      startScreen.style.display = "none";
+
+      // Wait until MindAR is ready
+      if (!mindarReady) {
+        await new Promise((resolve) => {
+          sceneEl.addEventListener("loaded", resolve, { once: true });
+        });
+      }
+
+      const mindarComponent = sceneEl.components["mindar-image"];
+      await mindarComponent.start();
+    });
+  });
+</script>
+
 </body>
 </html>
