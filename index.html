@@ -2,50 +2,38 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AR Invitation</title>
 
-  <!-- MindAR CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
-
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      background-color: black;
-    }
-
-    #ar-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      z-index: 0;
-    }
-
-    canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
+    body, html { margin: 0; overflow: hidden; }
+    canvas { position: absolute; top: 0; left: 0; }
   </style>
+
+  <!-- MindAR CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
+
+  <!-- Import map for modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js",
+        "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"
+      }
+    }
+  </script>
 </head>
 <body>
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-
   <div id="ar-container"></div>
 
-  <script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { MindARThree } from 'mindar-image-three';
+
     const startAR = async () => {
-      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.querySelector("#ar-container"),
-        imageTargetSrc: "./assets/targets.mind", // Ensure this exists!
+      const mindarThree = new MindARThree({
+        container: document.body,
+        imageTargetSrc: './assets/targets.mind' // make sure this exists
       });
 
       const { renderer, scene, camera } = mindarThree;
