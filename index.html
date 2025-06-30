@@ -2,19 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AR Invitation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MindAR AR Invite</title>
 
   <!-- MindAR CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
   <link rel="icon" href="data:,">
 
   <style>
-    body, html {
+    html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #000;
+      background-color: black;
     }
 
     #ar-container {
@@ -28,13 +28,13 @@
   <div id="ar-container"></div>
 
   <script type="module">
-    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
-    import { MindARThree } from "https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js";
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
+    import { MindARThree } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js';
 
     const startAR = async () => {
       const mindarThree = new MindARThree({
         container: document.querySelector("#ar-container"),
-        imageTargetSrc: './assets/targets.mind'
+        imageTargetSrc: "./assets/targets.mind" // make sure this path is correct
       });
 
       const { renderer, scene, camera } = mindarThree;
@@ -42,20 +42,4 @@
 
       const loader = new THREE.TextureLoader();
       loader.load('./assets/sat2farm.png', (texture) => {
-        const geometry = new THREE.PlaneGeometry(1, 0.75);
-        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-        const mesh = new THREE.Mesh(geometry, material);
-        anchor.group.add(mesh);
-      });
-
-      await mindarThree.start();
-
-      renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
-      });
-    };
-
-    startAR();
-  </script>
-</body>
-</html>
+        const geometry = n
