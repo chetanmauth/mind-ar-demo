@@ -16,7 +16,7 @@
 <body>
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
   <div id="ar-container"></div>
 
@@ -24,7 +24,7 @@
     const startAR = async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.body,
-        imageTargetSrc: "./assets/targets.mind", // make sure this exists!
+        imageTargetSrc: "./assets/targets.mind", // Ensure this exists!
       });
 
       const { renderer, scene, camera } = mindarThree;
