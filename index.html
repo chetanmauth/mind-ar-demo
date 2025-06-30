@@ -1,58 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AR Invitation</title>
+  <head>
+    <meta charset="UTF-8" />
+    <title>AR Invitation (Stable)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- MindAR CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
-  <link rel="icon" href="data:,">
+    <!-- Favicon fix -->
+    <link rel="icon" href="data:,">
 
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background-color: black;
-    }
-    #ar-container {
-      width: 100vw;
-      height: 100vh;
-    }
-  </style>
-</head>
-<body>
-  <div id="ar-container"></div>
+    <!-- MindAR + A-Frame -->
+    <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
 
-  <script type="module">
-    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
-    import { MindARThree } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js';
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
 
-    const start = async () => {
-      const mindarThree = new MindARThree({
-        container: document.querySelector("#ar-container"),
-        imageTargetSrc: "./assets/targets.mind"
-      });
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        height: 100%;
+      }
+      #ar-scene {
+        width: 100vw;
+        height: 100vh;
+        position: fixed;
+      }
+    </style>
+  </head>
+  <body>
+    <a-scene
+      id="ar-scene"
+      mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiScanning: true; uiLoading: true;"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: true"
+      embedded
+    >
+      <!-- Camera -->
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-      const { renderer, scene, camera } = mindarThree;
-      const anchor = mindarThree.addAnchor(0);
-
-      const loader = new THREE.TextureLoader();
-      loader.load("./assets/sat2farm.png", (texture) => {
-        const geometry = new THREE.PlaneGeometry(1, 0.75);
-        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-        const mesh = new THREE.Mesh(geometry, material);
-        anchor.group.add(mesh);
-      });
-
-      await mindarThree.start();
-      renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
-      });
-    };
-
-    start();
-  </script>
-</body>
+      <!-- Marker + Content -->
+      <a-entity mindar-image-target="targetIndex: 0">
+        <a-image 
+          src="./assets/sat2farm.png"
+          position="0 0 0"
+          width="1"
+          height="0.75"
+          transparent="true"
+        ></a-image>
+      </a-entity>
+    </a-scene>
+  </body>
 </html>
