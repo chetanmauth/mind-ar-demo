@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AR Invite Upright</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MindAR AR Invite</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <link rel="icon" href="data:," />
 
-  <!-- A-Frame & MindAR -->
+  <!-- MindAR + A-Frame -->
   <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.css" />
@@ -15,15 +15,18 @@
     html, body {
       margin: 0;
       padding: 0;
-      overflow: hidden;
+      width: 100%;
       height: 100%;
-      background: black;
+      overflow: hidden;
+      background-color: black;
     }
 
     #ar-scene {
       width: 100vw;
       height: 100vh;
       position: fixed;
+      top: 0;
+      left: 0;
     }
   </style>
 </head>
@@ -52,9 +55,9 @@
   </a-entity>
 </a-scene>
 
-<!-- Trigger animation after detection -->
 <script>
-  AFRAME.registerComponent('start-animation', {
+  // Wait for marker detection
+  AFRAME.registerComponent('animate-on-found', {
     init: function () {
       const image = document.getElementById('invite-image');
       this.el.addEventListener('targetFound', () => {
@@ -66,13 +69,12 @@
             dur: 1000,
             easing: 'easeOutBack'
           });
-        }, 1000); // 1 second delay
+        }, 1000); // Delay of 1s
       });
     }
   });
 
-  // Attach to target
-  document.querySelector('#target').setAttribute('start-animation', '');
+  document.querySelector('#target').setAttribute('animate-on-found', '');
 </script>
 
 </body>
