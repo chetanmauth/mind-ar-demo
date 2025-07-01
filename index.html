@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AR Invitation</title>
 
-  <!-- MindAR CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
 
   <style>
@@ -50,19 +49,50 @@
       });
 
       const { renderer, scene, camera } = mindarThree;
-
       const anchor = mindarThree.addAnchor(0);
+
+      let imagePlane;
 
       const loader = new THREE.TextureLoader();
       loader.load('./assets/sat2farm.png', (texture) => {
         const geometry = new THREE.PlaneGeometry(1, 0.75);
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-        const imagePlane = new THREE.Mesh(geometry, material);
+        imagePlane = new THREE.Mesh(geometry, material);
+
+        imagePlane.scale.set(0.001, 0.001, 0.001); // Start tiny
         anchor.group.add(imagePlane);
       });
 
-      await mindarThree.start();
+      // Animate scale after target is found
+      anchor.onTargetFound = () => {
+        setTimeout(() => {
+          if (imagePlane) {
+            const duration = 1000; // 1 second animation
+            const startTime = performance.now();
+            const startScale = 0.001;
+            const endScale = 1;
 
+            const animate = (now) => {
+              const elapsed = now - startTime;
+              const t = Math.min(elapsed / duration, 1);
+              const scale = startScale + (endScale - startScale) * t;
+              imagePlane.scale.set(scale, scale, scale);
+
+              if (t < 1) requestAnimationFrame(animate);
+            };
+
+            requestAnimationFrame(animate);
+          }
+        }, 1000); // delay 1s after detection
+      };
+
+      anchor.onTargetLost = () => {
+        if (imagePlane) {
+          imagePlane.scale.set(0.001, 0.001, 0.001); // Reset
+        }
+      };
+
+      await mindarThree.start();
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
