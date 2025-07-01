@@ -59,7 +59,8 @@
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         imagePlane = new THREE.Mesh(geometry, material);
 
-        imagePlane.scale.set(0.001, 0.001, 0.001); // Start tiny
+        imagePlane.scale.set(0.001, 0.001, 0.001); // start tiny
+        imagePlane.rotation.x = -Math.PI / 2;      // 🔁 make image perpendicular
         anchor.group.add(imagePlane);
       });
 
