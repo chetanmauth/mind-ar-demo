@@ -51,24 +51,33 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      let imagePlane;
+      let imageGroup;
 
       const loader = new THREE.TextureLoader();
       loader.load('./assets/sat2farm.png', (texture) => {
-        const geometry = new THREE.PlaneGeometry(1, 0.75);
+        const geometry = new THREE.PlaneGeometry(1, 0.75); // Width, Height
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-        imagePlane = new THREE.Mesh(geometry, material);
+        const imagePlane = new THREE.Mesh(geometry, material);
 
-        imagePlane.scale.set(0.001, 0.001, 0.001); // start tiny
-        imagePlane.rotation.x = Math.PI / 2;      // 🔁 make image perpendicular
-        anchor.group.add(imagePlane);
+        // Move plane upward so its bottom touches origin (like standing on ground)
+        imagePlane.position.y = 0.75 / 2;
+
+        // Create group and rotate it to be perpendicular
+        imageGroup = new THREE.Group();
+        imageGroup.add(imagePlane);
+        imageGroup.rotation.x = Math.PI / 2;
+
+        // Start small for scale animation
+        imageGroup.scale.set(0.001, 0.001, 0.001);
+
+        anchor.group.add(imageGroup);
       });
 
-      // Animate scale after target is found
+      // Animate scale after 1s of detection
       anchor.onTargetFound = () => {
         setTimeout(() => {
-          if (imagePlane) {
-            const duration = 1000; // 1 second animation
+          if (imageGroup) {
+            const duration = 1000; // 1 second
             const startTime = performance.now();
             const startScale = 0.001;
             const endScale = 1;
@@ -77,19 +86,19 @@
               const elapsed = now - startTime;
               const t = Math.min(elapsed / duration, 1);
               const scale = startScale + (endScale - startScale) * t;
-              imagePlane.scale.set(scale, scale, scale);
+              imageGroup.scale.set(scale, scale, scale);
 
               if (t < 1) requestAnimationFrame(animate);
             };
 
             requestAnimationFrame(animate);
           }
-        }, 1000); // delay 1s after detection
+        }, 1000); // Delay 1s after detection
       };
 
       anchor.onTargetLost = () => {
-        if (imagePlane) {
-          imagePlane.scale.set(0.001, 0.001, 0.001); // Reset
+        if (imageGroup) {
+          imageGroup.scale.set(0.001, 0.001, 0.001); // Reset on loss
         }
       };
 
