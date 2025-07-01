@@ -60,7 +60,7 @@
         imagePlane = new THREE.Mesh(geometry, material);
 
         imagePlane.scale.set(0.001, 0.001, 0.001); // start tiny
-        imagePlane.rotation.x = -Math.PI / 2;      // 🔁 make image perpendicular
+        imagePlane.rotation.x = Math.PI / 2;      // 🔁 make image perpendicular
         anchor.group.add(imagePlane);
       });
 
