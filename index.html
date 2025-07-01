@@ -3,34 +3,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Parallax Stable</title>
-
+  <title>AR Parallax - Main Camera</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
-
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
+      margin: 0; padding: 0;
       height: 100%;
-      overflow: hidden;
       background: black;
+      overflow: hidden;
     }
-
     #ar-container {
       position: absolute;
-      top: 0;
-      left: 0;
+      top: 0; left: 0;
       width: 100vw;
       height: 100vh;
-      overflow: hidden;
       z-index: 1;
     }
-
     canvas {
       display: block;
       position: absolute;
-      top: 0;
-      left: 0;
+      top: 0; left: 0;
     }
   </style>
 </head>
@@ -42,6 +34,34 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
   <script>
+    // ✅ Helper to get main back camera
+    const getMainCameraStream = async () => {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === "videoinput");
+
+      let mainCam = videoDevices.find(device =>
+        device.label.toLowerCase().includes("back") &&
+        !device.label.toLowerCase().includes("ultra")
+      );
+
+      if (!mainCam) mainCam = videoDevices[0]; // fallback
+
+      return await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: { exact: mainCam.deviceId },
+          facingMode: "environment"
+        },
+        audio: false
+      });
+    };
+
+    const loadTexture = (url) => {
+      return new Promise((resolve, reject) => {
+        const loader = new THREE.TextureLoader();
+        loader.load(url, resolve, undefined, reject);
+      });
+    };
+
     const startAR = async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
@@ -53,51 +73,40 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      const loader = new THREE.TextureLoader();
-      const group = new THREE.Group();
+      // ✅ Load textures
+      const backgroundTexture = await loadTexture('./assets/background.png');
+      const foregroundTexture = await loadTexture('./assets/foreground.png');
 
+      const group = new THREE.Group();
       const imageWidth = 0.8;
       const imageHeight = 0.6;
 
-      // Load textures
-      const backgroundTexture = loader.load('./assets/background.jpg');
-      const foregroundTexture = loader.load('./assets/sat2farm.png');
-
-      // Background plane
-      const bgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
-      const bgMaterial = new THREE.MeshBasicMaterial({
-        map: backgroundTexture,
-        transparent: true,
-        depthWrite: false
-      });
-      const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
+      const bgPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(imageWidth, imageHeight),
+        new THREE.MeshBasicMaterial({ map: backgroundTexture, transparent: true, depthWrite: false })
+      );
       bgPlane.position.y = imageHeight / 2;
       bgPlane.position.z = -0.05;
 
-      // Foreground plane
-      const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
-      const fgMaterial = new THREE.MeshBasicMaterial({
-        map: foregroundTexture,
-        transparent: true,
-        depthWrite: false
-      });
-      const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
+      const fgPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(imageWidth, imageHeight),
+        new THREE.MeshBasicMaterial({ map: foregroundTexture, transparent: true, depthWrite: false })
+      );
       fgPlane.position.y = imageHeight / 2;
-      fgPlane.position.z = 0.1;
+      fgPlane.position.z = 0.05; // ✅ Push foreground ahead
 
       group.add(bgPlane);
       group.add(fgPlane);
       group.rotation.x = Math.PI / 2;
-      group.scale.set(0.001, 0.001, 0.001); // Start tiny
+      group.scale.set(0.001, 0.001, 0.001); // Start tiny for animation
 
       anchor.group.add(group);
 
-      // Smoothing vectors
       const smoothedPosition = new THREE.Vector3();
       const smoothedQuaternion = new THREE.Quaternion();
 
-      // Animate on detection
       anchor.onTargetFound = () => {
+        console.log("🎯 Target Found");
         setTimeout(() => {
           const duration = 1000;
           const startTime = performance.now();
@@ -112,12 +121,16 @@
         }, 1000);
       };
 
-      // Reset on lost
       anchor.onTargetLost = () => {
+        console.log("❌ Target Lost");
         group.scale.set(0.001, 0.001, 0.001);
       };
 
+      // ✅ Use main camera
+      const stream = await getMainCameraStream();
+      await mindarThree.setVideoSource(stream);
       await mindarThree.start();
+
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
@@ -133,7 +146,6 @@
             group.quaternion.copy(smoothedQuaternion);
           }
         }
-
         renderer.render(scene, camera);
       });
 
