@@ -85,10 +85,12 @@
     let gyroX = 0;
     let gyroY = 0;
 
-    window.addEventListener('deviceorientation', (event) => {
-      gyroX = event.beta / 90;  // range -1 to 1
-      gyroY = event.gamma / 90;
-    });
+    if (window.DeviceOrientationEvent) {
+      window.addEventListener('deviceorientation', (event) => {
+        gyroX = event.beta / 90;
+        gyroY = event.gamma / 90;
+      }, true);
+    }
 
     anchor.onTargetFound = () => {
       setTimeout(() => {
@@ -110,28 +112,34 @@
     };
 
     const start = async () => {
-      await mindarThree.start();
-      renderer.setAnimationLoop(() => {
-        if (anchor.group.visible) {
-          const dist = smoothedPosition.distanceTo(anchor.group.position);
-          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
+      try {
+        await mindarThree.start();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
 
-          if (dist > 0.0005 || angle > 0.001) {
-            smoothedPosition.lerp(anchor.group.position, 0.08);
-            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
-            group.position.copy(smoothedPosition);
-            group.quaternion.copy(smoothedQuaternion);
+        renderer.setAnimationLoop(() => {
+          if (anchor.group.visible) {
+            const dist = smoothedPosition.distanceTo(anchor.group.position);
+            const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
 
-            // Apply gyroscope adjustment for parallax
-            group.position.x += gyroY * 0.02;
-            group.position.y += gyroX * 0.02;
+            if (dist > 0.0005 || angle > 0.001) {
+              smoothedPosition.lerp(anchor.group.position, 0.08);
+              smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+              group.position.copy(smoothedPosition);
+              group.quaternion.copy(smoothedQuaternion);
+
+              group.position.x += gyroY * 0.02;
+              group.position.y += gyroX * 0.02;
+            }
           }
-        }
-        renderer.render(scene, camera);
-      });
+          renderer.render(scene, camera);
+        });
+      } catch (err) {
+        console.error("❌ MindAR failed to start:", err);
+      }
     };
 
-    start();
+    window.addEventListener('load', () => start());
   </script>
 </body>
 </html>
