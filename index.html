@@ -29,19 +29,9 @@
       position: relative;
       overflow: hidden;
     }
-    #control {
-      position: fixed;
-      top: 0;
-      left: 0;
-      z-index: 2;
-    }
   </style>
 </head>
 <body>
-  <div id="control">
-    <button id="startButton">Start</button>
-    <button id="stopButton">Stop</button>
-  </div>
   <div id="container"></div>
 
   <script type="module">
@@ -91,6 +81,15 @@
     const smoothedPosition = new THREE.Vector3();
     const smoothedQuaternion = new THREE.Quaternion();
 
+    // Gyroscope stabilization
+    let gyroX = 0;
+    let gyroY = 0;
+
+    window.addEventListener('deviceorientation', (event) => {
+      gyroX = event.beta / 90;  // range -1 to 1
+      gyroY = event.gamma / 90;
+    });
+
     anchor.onTargetFound = () => {
       setTimeout(() => {
         const duration = 1000;
@@ -122,17 +121,17 @@
             smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
             group.position.copy(smoothedPosition);
             group.quaternion.copy(smoothedQuaternion);
+
+            // Apply gyroscope adjustment for parallax
+            group.position.x += gyroY * 0.02;
+            group.position.y += gyroX * 0.02;
           }
         }
         renderer.render(scene, camera);
       });
     };
 
-    document.querySelector("#startButton").addEventListener("click", start);
-    document.querySelector("#stopButton").addEventListener("click", () => {
-      mindarThree.stop();
-      mindarThree.renderer.setAnimationLoop(null);
-    });
+    start();
   </script>
 </body>
 </html>
