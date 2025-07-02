@@ -2,18 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AR Parallax Stable</title>
 
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-      "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
-    }
-  }
-  </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.css" />
 
   <style>
     html, body {
@@ -23,125 +15,136 @@
       overflow: hidden;
       background: black;
     }
-    #container {
+
+    #ar-container {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100vw;
       height: 100vh;
-      position: relative;
       overflow: hidden;
+      z-index: 1;
+    }
+
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
     }
   </style>
 </head>
 <body>
-  <div id="container"></div>
+  <div id="ar-container"></div>
 
-  <script type="module">
-    import * as THREE from 'three';
-    import { MindARThree } from 'mindar-image-three';
+  <!-- Scripts -->
+  
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
 
-    const mindarThree = new MindARThree({
-      container: document.querySelector("#container"),
-      imageTargetSrc: "./assets/targets.mind",
-      filterMinCF: 0.0001,
-      filterBeta: 0.01,
-      missTolerance: 5,
-      warmupTolerance: 2
-    });
 
-    const { renderer, scene, camera } = mindarThree;
-    const anchor = mindarThree.addAnchor(0);
+  <script>
+    const startAR = async () => {
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+        container: document.querySelector("#ar-container"),
+        imageTargetSrc: "./assets/targets.mind",
+        filterMinCF: 0.1,
+        filterBeta: 0.01
+      });
 
-    const loader = new THREE.TextureLoader();
-    const group = new THREE.Group();
+      const { renderer, scene, camera } = mindarThree;
+      const anchor = mindarThree.addAnchor(0);
 
-    const imageWidth = 0.8;
-    const imageHeight = 0.6;
+      const loader = new THREE.TextureLoader();
+      const group = new THREE.Group();
 
-    const backgroundTexture = loader.load('./assets/background.jpg');
-    const foregroundTexture = loader.load('./assets/sat2farm.png');
+      const imageWidth = 0.8;
+      const imageHeight = 0.6;
 
-    const bgPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(imageWidth, imageHeight),
-      new THREE.MeshBasicMaterial({ map: backgroundTexture, transparent: true, depthWrite: false })
-    );
-    bgPlane.position.y = imageHeight / 2;
-    bgPlane.position.z = -0.05;
+      // Load textures
+      const backgroundTexture = loader.load('./assets/background.jpg');
+      const foregroundTexture = loader.load('./assets/sat2farm.png');
 
-    const fgPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(imageWidth, imageHeight),
-      new THREE.MeshBasicMaterial({ map: foregroundTexture, transparent: true, depthWrite: false })
-    );
-    fgPlane.position.y = imageHeight / 2;
-    fgPlane.position.z = 0.15;
+      // Background plane
+      const bgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
+      const bgMaterial = new THREE.MeshBasicMaterial({
+        map: backgroundTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
+      bgPlane.position.y = imageHeight / 2;
+      bgPlane.position.z = -0.05;
 
-    group.add(bgPlane);
-    group.add(fgPlane);
-    group.rotation.x = Math.PI / 2;
-    group.scale.set(0.001, 0.001, 0.001);
+      // Foreground plane
+      const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
+      const fgMaterial = new THREE.MeshBasicMaterial({
+        map: foregroundTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
+      fgPlane.position.y = imageHeight / 2;
+      fgPlane.position.z = 0.1;
 
-    anchor.group.add(group);
+      group.add(bgPlane);
+      group.add(fgPlane);
+      group.rotation.x = Math.PI / 2;
+      group.scale.set(0.001, 0.001, 0.001); // Start tiny
 
-    const smoothedPosition = new THREE.Vector3();
-    const smoothedQuaternion = new THREE.Quaternion();
+      anchor.group.add(group);
 
-    // Gyroscope stabilization
-    let gyroX = 0;
-    let gyroY = 0;
+      // Smoothing vectors
+      const smoothedPosition = new THREE.Vector3();
+      const smoothedQuaternion = new THREE.Quaternion();
 
-    if (window.DeviceOrientationEvent) {
-      window.addEventListener('deviceorientation', (event) => {
-        gyroX = event.beta / 90;
-        gyroY = event.gamma / 90;
-      }, true);
-    }
+      // Animate on detection
+      anchor.onTargetFound = () => {
+        setTimeout(() => {
+          const duration = 1000;
+          const startTime = performance.now();
+          const animate = (now) => {
+            const elapsed = now - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            const scale = 0.001 + (1 - 0.001) * t;
+            group.scale.set(scale, scale, scale);
+            if (t < 1) requestAnimationFrame(animate);
+          };
+          requestAnimationFrame(animate);
+        }, 1000);
+      };
 
-    anchor.onTargetFound = () => {
-      setTimeout(() => {
-        const duration = 1000;
-        const startTime = performance.now();
-        const animate = (now) => {
-          const elapsed = now - startTime;
-          const t = Math.min(elapsed / duration, 1);
-          const scale = 0.001 + (1 - 0.001) * t;
-          group.scale.set(scale, scale, scale);
-          if (t < 1) requestAnimationFrame(animate);
-        };
-        requestAnimationFrame(animate);
-      }, 1000);
-    };
+      // Reset on lost
+      anchor.onTargetLost = () => {
+        group.scale.set(0.001, 0.001, 0.001);
+      };
 
-    anchor.onTargetLost = () => {
-      group.scale.set(0.001, 0.001, 0.001);
-    };
+      await mindarThree.start();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
 
-    const start = async () => {
-      try {
-        await mindarThree.start();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setAnimationLoop(() => {
+        if (anchor.group.visible) {
+          const dist = smoothedPosition.distanceTo(anchor.group.position);
+          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
 
-        renderer.setAnimationLoop(() => {
-          if (anchor.group.visible) {
-            const dist = smoothedPosition.distanceTo(anchor.group.position);
-            const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
-
-            if (dist > 0.0005 || angle > 0.001) {
-              smoothedPosition.lerp(anchor.group.position, 0.08);
-              smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
-              group.position.copy(smoothedPosition);
-              group.quaternion.copy(smoothedQuaternion);
-
-              group.position.x += gyroY * 0.02;
-              group.position.y += gyroX * 0.02;
-            }
+          if (dist > 0.0005 || angle > 0.001) {
+            smoothedPosition.lerp(anchor.group.position, 0.08);
+            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+            group.position.copy(smoothedPosition);
+            group.quaternion.copy(smoothedQuaternion);
           }
-          renderer.render(scene, camera);
-        });
-      } catch (err) {
-        console.error("❌ MindAR failed to start:", err);
-      }
+        }
+
+        renderer.render(scene, camera);
+      });
+
+      window.addEventListener('resize', () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
     };
 
-    window.addEventListener('load', () => start());
+    startAR();
   </script>
 </body>
 </html>
