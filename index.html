@@ -6,40 +6,28 @@
   <title>AR Parallax Stable</title>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
-
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
+      margin: 0; padding: 0;
+      height: 100%; background: black;
       overflow: hidden;
-      background: black;
     }
-
     #ar-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
+      position: absolute; top: 0; left: 0;
+      width: 100vw; height: 100vh;
       z-index: 1;
     }
-
     #camera-select {
       position: absolute;
-      top: 10px;
-      left: 10px;
+      top: 10px; left: 10px;
       z-index: 10;
       padding: 6px;
       font-size: 16px;
     }
-
     canvas {
       display: block;
       position: absolute;
-      top: 0;
-      left: 0;
+      top: 0; left: 0;
     }
   </style>
 </head>
@@ -47,41 +35,31 @@
   <select id="camera-select"></select>
   <div id="ar-container"></div>
 
-  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
   <script>
-    const getCameras = async () => {
+    const getRearCameras = async () => {
       const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices.filter(device => device.kind === 'videoinput' && !device.label.toLowerCase().includes('front'));
+      return devices.filter(device =>
+        device.kind === 'videoinput' &&
+        !device.label.toLowerCase().includes('front')
+      );
     };
 
-    const getCameraStream = async (deviceId) => {
-      return await navigator.mediaDevices.getUserMedia({
-        video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' },
-        audio: false
-      });
-    };
-
-    const startAR = async () => {
-      const cameras = await getCameras();
-      const select = document.getElementById("camera-select");
-      cameras.forEach(cam => {
-        const option = document.createElement("option");
-        option.value = cam.deviceId;
-        option.text = cam.label || "Camera";
-        select.appendChild(option);
-      });
-
-      const defaultId = cameras[0]?.deviceId;
-      select.value = defaultId;
-
+    const startAR = async (deviceId) => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./assets/targets.mind",
+        maxTrack: 1,
         filterMinCF: 0.05,
-        filterBeta: 0.005
+        filterBeta: 0.005,
+        cameraConfig: {
+          video: {
+            deviceId: { exact: deviceId }
+          },
+          audio: false
+        }
       });
 
       const { renderer, scene, camera } = mindarThree;
@@ -150,22 +128,7 @@
         group.scale.set(0.001, 0.001, 0.001);
       };
 
-      const setVideoFeed = async (deviceId) => {
-        const stream = await getCameraStream(deviceId);
-        await mindarThree.setVideoSource(stream);
-        const videoEl = mindarThree.video;
-        videoEl.onloadedmetadata = () => console.log("Video loaded:", videoEl.videoWidth, videoEl.videoHeight);
-        videoEl.onerror = err => console.error("Video error", err);
-      };
-
-      await setVideoFeed(defaultId);
       await mindarThree.start();
-
-      select.addEventListener('change', async () => {
-        await mindarThree.stop();
-        await setVideoFeed(select.value);
-        await mindarThree.start();
-      });
 
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
@@ -187,7 +150,30 @@
       });
     };
 
-    startAR();
+    // Init dropdown
+    (async () => {
+      const cameras = await getRearCameras();
+      const select = document.getElementById("camera-select");
+
+      cameras.forEach((cam, idx) => {
+        const option = document.createElement("option");
+        option.value = cam.deviceId;
+        option.text = cam.label || `Camera ${idx + 1}`;
+        select.appendChild(option);
+      });
+
+      const selectedDeviceId = cameras[0]?.deviceId;
+      if (!selectedDeviceId) {
+        alert("❌ No rear camera found.");
+        return;
+      }
+
+      await startAR(selectedDeviceId);
+
+      select.addEventListener('change', async (e) => {
+        location.reload(); // force full restart with new camera
+      });
+    })();
   </script>
 </body>
 </html>
