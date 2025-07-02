@@ -3,25 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Parallax - Main Camera</title>
+  <title>MindAR Smooth Parallax</title>
+
+  <!-- MindAR -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
+  <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+
+  <!-- Optional polyfill -->
+  <script src="https://cdn.jsdelivr.net/npm/media-devices-polyfill"></script>
+
   <style>
     html, body {
-      margin: 0; padding: 0;
-      height: 100%;
-      background: black;
-      overflow: hidden;
+      margin: 0; padding: 0; height: 100%;
+      background: black; overflow: hidden;
     }
     #ar-container {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 1;
+      position: absolute; top: 0; left: 0;
+      width: 100vw; height: 100vh; z-index: 1;
     }
     canvas {
-      display: block;
-      position: absolute;
+      display: block; position: absolute;
       top: 0; left: 0;
     }
   </style>
@@ -29,32 +31,24 @@
 <body>
   <div id="ar-container"></div>
 
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-
   <script>
-    const getMainCameraStream = async () => {
+    // 📷 Fallback-safe main camera selector
+    const getBestCameraStream = async () => {
       try {
-        await navigator.mediaDevices.getUserMedia({ video: true });
+        await navigator.mediaDevices.getUserMedia({ video: true }); // prompt permissions
         const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === "videoinput");
-        let mainCam = videoDevices.find(device =>
-          device.label.toLowerCase().includes("back") &&
-          !device.label.toLowerCase().includes("ultra")
-        );
-        if (!mainCam) mainCam = videoDevices[0];
+        const cams = devices.filter(d => d.kind === "videoinput");
+        const mainCam = cams.find(d => d.label.toLowerCase().includes("back") && !d.label.toLowerCase().includes("ultra")) || cams[0];
+
         return await navigator.mediaDevices.getUserMedia({
           video: {
-            deviceId: mainCam ? { exact: mainCam.deviceId } : undefined,
+            deviceId: { exact: mainCam.deviceId },
             facingMode: "environment"
-          },
-          audio: false
+          }
         });
-      } catch (err) {
-        console.error("Camera access error:", err);
-        alert("Unable to access camera. Please grant permission and reload.");
-        throw err;
+      } catch (e) {
+        console.warn("Fallback to default camera:", e);
+        return await navigator.mediaDevices.getUserMedia({ video: true });
       }
     };
 
@@ -65,97 +59,87 @@
     };
 
     const startAR = async () => {
-      try {
-        const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-          container: document.querySelector("#ar-container"),
-          imageTargetSrc: "./assets/targets.mind",
-          filterMinCF: 0.01,
-          filterBeta: 0.005,
-          missTolerance: 5,
-          warmupTolerance: 5
-        });
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+        container: document.querySelector("#ar-container"),
+        imageTargetSrc: "./assets/targets.mind",
+        filterMinCF: 0.001,  // high sensitivity
+        filterBeta: 0.007,   // smooth motion
+        missTolerance: 5,
+        warmupTolerance: 5,
+        maxTrack: 1
+      });
 
-        const { renderer, scene, camera } = mindarThree;
-        const anchor = mindarThree.addAnchor(0);
+      const { renderer, scene, camera } = mindarThree;
+      const anchor = mindarThree.addAnchor(0);
 
-        const backgroundTexture = await loadTexture('./assets/background.jpg');
-        const foregroundTexture = await loadTexture('./assets/sat2farm.png');
+      // 📦 Load images
+      const bgTexture = await loadTexture('./assets/background.png');
+      const fgTexture = await loadTexture('./assets/foreground.png');
 
-        const group = new THREE.Group();
-        const imageWidth = 0.8;
-        const imageHeight = 0.6;
+      // 🎬 Create image planes
+      const width = 0.8, height = 0.6;
+      const bgMaterial = new THREE.MeshBasicMaterial({ map: bgTexture, transparent: true, depthWrite: false });
+      const fgMaterial = new THREE.MeshBasicMaterial({ map: fgTexture, transparent: true, depthWrite: false });
 
-        const bgPlane = new THREE.Mesh(
-          new THREE.PlaneGeometry(imageWidth, imageHeight),
-          new THREE.MeshBasicMaterial({ map: backgroundTexture, transparent: true, depthWrite: false })
-        );
-        bgPlane.position.set(0, imageHeight / 2, -0.05);
+      const bgPlane = new THREE.Mesh(new THREE.PlaneGeometry(width, height), bgMaterial);
+      const fgPlane = new THREE.Mesh(new THREE.PlaneGeometry(width, height), fgMaterial);
 
-        const fgPlane = new THREE.Mesh(
-          new THREE.PlaneGeometry(imageWidth, imageHeight),
-          new THREE.MeshBasicMaterial({ map: foregroundTexture, transparent: true, depthWrite: false })
-        );
-        fgPlane.position.set(0, imageHeight / 2, 0.05);
+      bgPlane.position.set(0, height / 2, -0.05); // background slightly back
+      fgPlane.position.set(0, height / 2, 0.05);  // foreground slightly ahead
 
-        group.add(bgPlane);
-        group.add(fgPlane);
-        group.rotation.x = Math.PI / 2;
+      const group = new THREE.Group();
+      group.add(bgPlane);
+      group.add(fgPlane);
+      group.rotation.x = Math.PI / 2;
+      group.scale.set(0.001, 0.001, 0.001); // scale in from tiny
+
+      anchor.group.add(group);
+
+      // Smooth pose
+      const smoothedPosition = new THREE.Vector3();
+      const smoothedQuaternion = new THREE.Quaternion();
+
+      anchor.onTargetFound = () => {
+        console.log("🎯 Target Found");
+        setTimeout(() => {
+          const start = performance.now(), duration = 1000;
+          const animateScale = (now) => {
+            const t = Math.min((now - start) / duration, 1);
+            const s = 0.001 + (1 - 0.001) * t;
+            group.scale.set(s, s, s);
+            if (t < 1) requestAnimationFrame(animateScale);
+          };
+          requestAnimationFrame(animateScale);
+        }, 1000);
+      };
+
+      anchor.onTargetLost = () => {
+        console.log("❌ Target Lost");
         group.scale.set(0.001, 0.001, 0.001);
+      };
 
-        anchor.group.add(group);
+      // 🎥 Camera setup
+      const stream = await getBestCameraStream();
+      console.log("📷 Using:", stream.getVideoTracks()[0].label);
+      await mindarThree.setVideoSource(stream);
+      await mindarThree.start();
 
-        const smoothedPosition = new THREE.Vector3();
-        const smoothedQuaternion = new THREE.Quaternion();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
 
-        anchor.onTargetFound = () => {
-          setTimeout(() => {
-            const startTime = performance.now();
-            const duration = 1000;
-            const animate = (now) => {
-              const t = Math.min((now - startTime) / duration, 1);
-              const scale = 0.001 + (1 - 0.001) * t;
-              group.scale.set(scale, scale, scale);
-              if (t < 1) requestAnimationFrame(animate);
-            };
-            requestAnimationFrame(animate);
-          }, 1000);
-        };
+      renderer.setAnimationLoop(() => {
+        if (anchor.group.visible) {
+          smoothedPosition.lerp(anchor.group.position, 0.06);
+          smoothedQuaternion.slerp(anchor.group.quaternion, 0.06);
+          group.position.copy(smoothedPosition);
+          group.quaternion.copy(smoothedQuaternion);
+        }
+        renderer.render(scene, camera);
+      });
 
-        anchor.onTargetLost = () => {
-          group.scale.set(0.001, 0.001, 0.001);
-        };
-
-        const stream = await getMainCameraStream();
-        const video = document.createElement("video");
-        video.setAttribute("autoplay", "");
-        video.setAttribute("muted", "");
-        video.setAttribute("playsinline", "");
-        video.srcObject = stream;
-        await video.play();
-
-        await mindarThree.setVideoSource(video);
-        await mindarThree.start();
-
+      window.addEventListener("resize", () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-
-        renderer.setAnimationLoop(() => {
-          if (anchor.group.visible) {
-            smoothedPosition.lerp(anchor.group.position, 0.05);
-            smoothedQuaternion.slerp(anchor.group.quaternion, 0.05);
-            group.position.copy(smoothedPosition);
-            group.quaternion.copy(smoothedQuaternion);
-          }
-          renderer.render(scene, camera);
-        });
-
-        window.addEventListener('resize', () => {
-          renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-      } catch (err) {
-        console.error("AR start failed:", err);
-        alert("Failed to start AR. Please ensure camera permission is granted and targets.mind is accessible.");
-      }
+      });
     };
 
     startAR();
