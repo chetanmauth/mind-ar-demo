@@ -26,6 +26,13 @@
       z-index: 1;
     }
 
+    #camera-select {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+    }
+
     canvas {
       display: block;
       position: absolute;
@@ -35,6 +42,7 @@
   </style>
 </head>
 <body>
+  <select id="camera-select"></select>
   <div id="ar-container"></div>
 
   <!-- Scripts -->
@@ -42,12 +50,41 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
   <script>
-    const startAR = async () => {
+    let currentStream;
+
+    const getCameraDevices = async () => {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter(device => device.kind === 'videoinput');
+    };
+
+    const populateCameraDropdown = async () => {
+      const cameras = await getCameraDevices();
+      const select = document.getElementById('camera-select');
+      select.innerHTML = '';
+      cameras.forEach(cam => {
+        const option = document.createElement('option');
+        option.value = cam.deviceId;
+        option.text = cam.label || `Camera ${select.length + 1}`;
+        select.appendChild(option);
+      });
+    };
+
+    const getSelectedCameraStream = async (deviceId) => {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+      return await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: deviceId } },
+        audio: false
+      });
+    };
+
+    const startAR = async (videoStream) => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./assets/targets.mind",
-        filterMinCF: 0.1,
-        filterBeta: 0.01
+        filterMinCF: 0.05,
+        filterBeta: 0.005
       });
 
       const { renderer, scene, camera } = mindarThree;
@@ -59,44 +96,44 @@
       const imageWidth = 0.8;
       const imageHeight = 0.6;
 
-      // Load textures
       const backgroundTexture = loader.load('./assets/background.jpg');
       const foregroundTexture = loader.load('./assets/sat2farm.png');
 
-      // Background plane
-      const bgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
-      const bgMaterial = new THREE.MeshBasicMaterial({
-        map: backgroundTexture,
-        transparent: true,
-        depthWrite: false
-      });
-      const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
+      const bgPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(imageWidth, imageHeight),
+        new THREE.MeshBasicMaterial({ map: backgroundTexture, transparent: true, depthWrite: false })
+      );
       bgPlane.position.y = imageHeight / 2;
       bgPlane.position.z = -0.05;
 
-      // Foreground plane
-      const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
-      const fgMaterial = new THREE.MeshBasicMaterial({
-        map: foregroundTexture,
-        transparent: true,
-        depthWrite: false
-      });
-      const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
+      const fgPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(imageWidth, imageHeight),
+        new THREE.MeshBasicMaterial({ map: foregroundTexture, transparent: true, depthWrite: false })
+      );
       fgPlane.position.y = imageHeight / 2;
       fgPlane.position.z = 0.1;
 
       group.add(bgPlane);
       group.add(fgPlane);
       group.rotation.x = Math.PI / 2;
-      group.scale.set(0.001, 0.001, 0.001); // Start tiny
+      group.scale.set(0.001, 0.001, 0.001);
 
       anchor.group.add(group);
 
-      // Smoothing vectors
       const smoothedPosition = new THREE.Vector3();
       const smoothedQuaternion = new THREE.Quaternion();
+      const gyroOffset = new THREE.Vector3();
 
-      // Animate on detection
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener("deviceorientation", (event) => {
+          const tiltX = event.beta || 0;
+          const tiltY = event.gamma || 0;
+
+          gyroOffset.x = THREE.MathUtils.clamp(tiltY / 90, -1, 1) * 0.05;
+          gyroOffset.y = THREE.MathUtils.clamp(tiltX / 90, -1, 1) * 0.05;
+        });
+      }
+
       anchor.onTargetFound = () => {
         setTimeout(() => {
           const duration = 1000;
@@ -112,26 +149,23 @@
         }, 1000);
       };
 
-      // Reset on lost
       anchor.onTargetLost = () => {
         group.scale.set(0.001, 0.001, 0.001);
       };
 
+      await mindarThree.setVideoSource(videoStream);
       await mindarThree.start();
+
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
       renderer.setAnimationLoop(() => {
         if (anchor.group.visible) {
-          const dist = smoothedPosition.distanceTo(anchor.group.position);
-          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
+          smoothedPosition.lerp(anchor.group.position, 0.04);
+          smoothedQuaternion.slerp(anchor.group.quaternion, 0.04);
 
-          if (dist > 0.0005 || angle > 0.001) {
-            smoothedPosition.lerp(anchor.group.position, 0.08);
-            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
-            group.position.copy(smoothedPosition);
-            group.quaternion.copy(smoothedQuaternion);
-          }
+          group.position.copy(smoothedPosition).add(gyroOffset);
+          group.quaternion.copy(smoothedQuaternion);
         }
 
         renderer.render(scene, camera);
@@ -142,7 +176,19 @@
       });
     };
 
-    startAR();
+    document.getElementById('camera-select').addEventListener('change', async (e) => {
+      const stream = await getSelectedCameraStream(e.target.value);
+      currentStream = stream;
+      startAR(stream);
+    });
+
+    (async () => {
+      await populateCameraDropdown();
+      const initialDeviceId = document.getElementById('camera-select').value;
+      const stream = await getSelectedCameraStream(initialDeviceId);
+      currentStream = stream;
+      startAR(stream);
+    })();
   </script>
 </body>
 </html>
