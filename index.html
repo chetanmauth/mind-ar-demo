@@ -46,8 +46,8 @@
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./assets/targets.mind",
-        filterMinCF: 0.1,
-        filterBeta: 0.01
+        filterMinCF: 0.05,
+        filterBeta: 0.005
       });
 
       const { renderer, scene, camera } = mindarThree;
