@@ -6,60 +6,48 @@
   <title>AR Parallax Stable</title>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
+
   <style>
     html, body {
-      margin: 0; padding: 0;
-      height: 100%; background: black;
+      margin: 0;
+      padding: 0;
+      height: 100%;
       overflow: hidden;
+      background: black;
     }
+
     #ar-container {
-      position: absolute; top: 0; left: 0;
-      width: 100vw; height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
       z-index: 1;
     }
-    #camera-select {
-      position: absolute;
-      top: 10px; left: 10px;
-      z-index: 10;
-      padding: 6px;
-      font-size: 16px;
-    }
+
     canvas {
       display: block;
       position: absolute;
-      top: 0; left: 0;
+      top: 0;
+      left: 0;
     }
   </style>
 </head>
 <body>
-  <select id="camera-select"></select>
   <div id="ar-container"></div>
 
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
   <script>
-    const getRearCameras = async () => {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices.filter(device =>
-        device.kind === 'videoinput' &&
-        !device.label.toLowerCase().includes('front')
-      );
-    };
-
-    const startAR = async (deviceId) => {
+    const startAR = async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./assets/targets.mind",
-        maxTrack: 1,
-        filterMinCF: 0.05,
-        filterBeta: 0.005,
-        cameraConfig: {
-          video: {
-            deviceId: { exact: deviceId }
-          },
-          audio: false
-        }
+        filterMinCF: 0.1,
+        filterBeta: 0.01
       });
 
       const { renderer, scene, camera } = mindarThree;
@@ -71,44 +59,44 @@
       const imageWidth = 0.8;
       const imageHeight = 0.6;
 
+      // Load textures
       const backgroundTexture = loader.load('./assets/background.jpg');
       const foregroundTexture = loader.load('./assets/sat2farm.png');
 
-      const bgPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(imageWidth, imageHeight),
-        new THREE.MeshBasicMaterial({ map: backgroundTexture, transparent: true, depthWrite: false })
-      );
+      // Background plane
+      const bgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
+      const bgMaterial = new THREE.MeshBasicMaterial({
+        map: backgroundTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
       bgPlane.position.y = imageHeight / 2;
       bgPlane.position.z = -0.05;
 
-      const fgPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(imageWidth, imageHeight),
-        new THREE.MeshBasicMaterial({ map: foregroundTexture, transparent: true, depthWrite: false })
-      );
+      // Foreground plane
+      const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
+      const fgMaterial = new THREE.MeshBasicMaterial({
+        map: foregroundTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
       fgPlane.position.y = imageHeight / 2;
       fgPlane.position.z = 0.1;
 
       group.add(bgPlane);
       group.add(fgPlane);
       group.rotation.x = Math.PI / 2;
-      group.scale.set(0.001, 0.001, 0.001);
+      group.scale.set(0.001, 0.001, 0.001); // Start tiny
 
       anchor.group.add(group);
 
+      // Smoothing vectors
       const smoothedPosition = new THREE.Vector3();
       const smoothedQuaternion = new THREE.Quaternion();
-      const gyroOffset = new THREE.Vector3();
 
-      if (window.DeviceOrientationEvent) {
-        window.addEventListener("deviceorientation", (event) => {
-          const tiltX = event.beta || 0;
-          const tiltY = event.gamma || 0;
-
-          gyroOffset.x = THREE.MathUtils.clamp(tiltY / 90, -1, 1) * 0.05;
-          gyroOffset.y = THREE.MathUtils.clamp(tiltX / 90, -1, 1) * 0.05;
-        });
-      }
-
+      // Animate on detection
       anchor.onTargetFound = () => {
         setTimeout(() => {
           const duration = 1000;
@@ -124,22 +112,26 @@
         }, 1000);
       };
 
+      // Reset on lost
       anchor.onTargetLost = () => {
         group.scale.set(0.001, 0.001, 0.001);
       };
 
       await mindarThree.start();
-
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
       renderer.setAnimationLoop(() => {
         if (anchor.group.visible) {
-          smoothedPosition.lerp(anchor.group.position, 0.04);
-          smoothedQuaternion.slerp(anchor.group.quaternion, 0.04);
+          const dist = smoothedPosition.distanceTo(anchor.group.position);
+          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
 
-          group.position.copy(smoothedPosition).add(gyroOffset);
-          group.quaternion.copy(smoothedQuaternion);
+          if (dist > 0.0005 || angle > 0.001) {
+            smoothedPosition.lerp(anchor.group.position, 0.08);
+            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+            group.position.copy(smoothedPosition);
+            group.quaternion.copy(smoothedQuaternion);
+          }
         }
 
         renderer.render(scene, camera);
@@ -150,30 +142,7 @@
       });
     };
 
-    // Init dropdown
-    (async () => {
-      const cameras = await getRearCameras();
-      const select = document.getElementById("camera-select");
-
-      cameras.forEach((cam, idx) => {
-        const option = document.createElement("option");
-        option.value = cam.deviceId;
-        option.text = cam.label || `Camera ${idx + 1}`;
-        select.appendChild(option);
-      });
-
-      const selectedDeviceId = cameras[0]?.deviceId;
-      if (!selectedDeviceId) {
-        alert("❌ No rear camera found.");
-        return;
-      }
-
-      await startAR(selectedDeviceId);
-
-      select.addEventListener('change', async (e) => {
-        location.reload(); // force full restart with new camera
-      });
-    })();
+    startAR();
   </script>
 </body>
 </html>
