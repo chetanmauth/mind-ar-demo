@@ -59,7 +59,10 @@
 
     const getCameraStream = async (deviceId) => {
       return await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: deviceId } },
+        video: {
+          deviceId: deviceId ? { exact: deviceId } : undefined,
+          facingMode: { exact: 'environment' }
+        },
         audio: false
       });
     };
@@ -155,7 +158,7 @@
         videoEl.onerror = err => console.error("Video error", err);
       };
 
-      await setVideoFeed(select.value || cameras[0].deviceId);
+      await setVideoFeed(select.value || cameras[0]?.deviceId);
       await mindarThree.start();
 
       select.addEventListener('change', async () => {
