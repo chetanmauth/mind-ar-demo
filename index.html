@@ -46,8 +46,8 @@
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./assets/targets.mind",
-        filterMinCF: 0.05, // Lower value = more sensitive
-        filterBeta: 0.005  // Lower value = smoother but slower response
+        filterMinCF: 0.05,
+        filterBeta: 0.005
       });
 
       const { renderer, scene, camera } = mindarThree;
@@ -85,6 +85,17 @@
 
       const smoothedPosition = new THREE.Vector3();
       const smoothedQuaternion = new THREE.Quaternion();
+      const gyroOffset = new THREE.Vector3();
+
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener("deviceorientation", (event) => {
+          const tiltX = event.beta || 0;
+          const tiltY = event.gamma || 0;
+
+          gyroOffset.x = THREE.MathUtils.clamp(tiltY / 90, -1, 1) * 0.05;
+          gyroOffset.y = THREE.MathUtils.clamp(tiltX / 90, -1, 1) * 0.05;
+        });
+      }
 
       anchor.onTargetFound = () => {
         setTimeout(() => {
@@ -111,10 +122,10 @@
 
       renderer.setAnimationLoop(() => {
         if (anchor.group.visible) {
-          // Increased smoothing factor for more stability
           smoothedPosition.lerp(anchor.group.position, 0.04);
           smoothedQuaternion.slerp(anchor.group.quaternion, 0.04);
-          group.position.copy(smoothedPosition);
+
+          group.position.copy(smoothedPosition).add(gyroOffset);
           group.quaternion.copy(smoothedQuaternion);
         }
 
