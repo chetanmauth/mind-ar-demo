@@ -31,6 +31,8 @@
       top: 10px;
       left: 10px;
       z-index: 10;
+      padding: 6px;
+      font-size: 16px;
     }
 
     canvas {
@@ -50,36 +52,28 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
   <script>
-    let currentStream;
-
-    const getCameraDevices = async () => {
+    const getCameras = async () => {
       const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices.filter(device => device.kind === 'videoinput');
+      return devices.filter(device => device.kind === 'videoinput' && !device.label.toLowerCase().includes('front'));
     };
 
-    const populateCameraDropdown = async () => {
-      const cameras = await getCameraDevices();
-      const select = document.getElementById('camera-select');
-      select.innerHTML = '';
-      cameras.forEach(cam => {
-        const option = document.createElement('option');
-        option.value = cam.deviceId;
-        option.text = cam.label || `Camera ${select.length + 1}`;
-        select.appendChild(option);
-      });
-    };
-
-    const getSelectedCameraStream = async (deviceId) => {
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-      }
+    const getCameraStream = async (deviceId) => {
       return await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: deviceId } },
         audio: false
       });
     };
 
-    const startAR = async (videoStream) => {
+    const startAR = async () => {
+      const cameras = await getCameras();
+      const select = document.getElementById("camera-select");
+      cameras.forEach(cam => {
+        const option = document.createElement("option");
+        option.value = cam.deviceId;
+        option.text = cam.label || "Camera";
+        select.appendChild(option);
+      });
+
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./assets/targets.mind",
@@ -153,8 +147,22 @@
         group.scale.set(0.001, 0.001, 0.001);
       };
 
-      await mindarThree.setVideoSource(videoStream);
+      const setVideoFeed = async (deviceId) => {
+        const stream = await getCameraStream(deviceId);
+        await mindarThree.setVideoSource(stream);
+        const videoEl = mindarThree.video;
+        videoEl.onloadedmetadata = () => console.log("Video loaded:", videoEl.videoWidth, videoEl.videoHeight);
+        videoEl.onerror = err => console.error("Video error", err);
+      };
+
+      await setVideoFeed(select.value || cameras[0].deviceId);
       await mindarThree.start();
+
+      select.addEventListener('change', async () => {
+        await mindarThree.stop();
+        await setVideoFeed(select.value);
+        await mindarThree.start();
+      });
 
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
@@ -176,19 +184,7 @@
       });
     };
 
-    document.getElementById('camera-select').addEventListener('change', async (e) => {
-      const stream = await getSelectedCameraStream(e.target.value);
-      currentStream = stream;
-      startAR(stream);
-    });
-
-    (async () => {
-      await populateCameraDropdown();
-      const initialDeviceId = document.getElementById('camera-select').value;
-      const stream = await getSelectedCameraStream(initialDeviceId);
-      currentStream = stream;
-      startAR(stream);
-    })();
+    startAR();
   </script>
 </body>
 </html>
