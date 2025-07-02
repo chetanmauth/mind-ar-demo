@@ -59,10 +59,7 @@
 
     const getCameraStream = async (deviceId) => {
       return await navigator.mediaDevices.getUserMedia({
-        video: {
-          deviceId: deviceId ? { exact: deviceId } : undefined,
-          facingMode: { exact: 'environment' }
-        },
+        video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' },
         audio: false
       });
     };
@@ -76,6 +73,9 @@
         option.text = cam.label || "Camera";
         select.appendChild(option);
       });
+
+      const defaultId = cameras[0]?.deviceId;
+      select.value = defaultId;
 
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
@@ -158,7 +158,7 @@
         videoEl.onerror = err => console.error("Video error", err);
       };
 
-      await setVideoFeed(select.value || cameras[0]?.deviceId);
+      await setVideoFeed(defaultId);
       await mindarThree.start();
 
       select.addEventListener('change', async () => {
