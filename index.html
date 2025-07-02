@@ -3,14 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MindAR - Main Camera + Smooth AR</title>
+  <title>MindAR Main Camera with Smooth Tracking</title>
 
-  <!-- MindAR -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
   <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-
-  <!-- Optional: Polyfill for older browsers -->
   <script src="https://cdn.jsdelivr.net/npm/media-devices-polyfill"></script>
 
   <style>
@@ -36,28 +33,38 @@
   <div id="ar-container"></div>
 
   <script>
-    // Step 1: Force Main Back Camera
-    const getMainBackCameraStream = async () => {
+    // Safe camera access + video element
+    const getSafeCameraVideoElement = async () => {
       await navigator.mediaDevices.getUserMedia({ video: true });
 
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(d => d.kind === "videoinput");
+      const cams = devices.filter(d => d.kind === "videoinput");
 
-      const mainCam = videoDevices.find(d =>
-        d.label.toLowerCase().includes("back") &&
-        !d.label.toLowerCase().includes("ultra") &&
-        !d.label.toLowerCase().includes("wide")
-      ) || videoDevices[0];
+      const selectedCam = cams.find(cam =>
+        cam.label.toLowerCase().includes("back") &&
+        !cam.label.toLowerCase().includes("ultra")
+      ) || cams[0];
 
-      console.log("🎥 Using Camera:", mainCam.label);
-
-      return await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          deviceId: { exact: mainCam.deviceId },
+          deviceId: selectedCam.deviceId,
           facingMode: "environment"
         },
         audio: false
       });
+
+      const video = document.createElement("video");
+      video.setAttribute("autoplay", "");
+      video.setAttribute("muted", "");
+      video.setAttribute("playsinline", "");
+      video.srcObject = stream;
+
+      await video.play().catch(err => {
+        console.error("video.play() failed:", err);
+        alert("Camera video failed to play. Try tapping the screen or refreshing.");
+      });
+
+      return video;
     };
 
     const loadTexture = (url) => {
@@ -80,7 +87,6 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load textures
       const bgTexture = await loadTexture('./assets/background.jpg');
       const fgTexture = await loadTexture('./assets/sat2farm.png');
 
@@ -90,23 +96,22 @@
         new THREE.PlaneGeometry(width, height),
         new THREE.MeshBasicMaterial({ map: bgTexture, transparent: true, depthWrite: false })
       );
-      bgPlane.position.set(0, height / 2, -0.05); // background slightly back
+      bgPlane.position.set(0, height / 2, -0.05);
 
       const fgPlane = new THREE.Mesh(
         new THREE.PlaneGeometry(width, height),
         new THREE.MeshBasicMaterial({ map: fgTexture, transparent: true, depthWrite: false })
       );
-      fgPlane.position.set(0, height / 2, 0.05); // foreground slightly front
+      fgPlane.position.set(0, height / 2, 0.05);
 
       const group = new THREE.Group();
       group.add(bgPlane);
       group.add(fgPlane);
       group.rotation.x = Math.PI / 2;
-      group.scale.set(0.001, 0.001, 0.001); // for scale animation
+      group.scale.set(0.001, 0.001, 0.001);
 
       anchor.group.add(group);
 
-      // Smooth tracking variables
       const smoothedPosition = new THREE.Vector3();
       const smoothedQuaternion = new THREE.Quaternion();
 
@@ -130,15 +135,7 @@
         group.scale.set(0.001, 0.001, 0.001);
       };
 
-      // Step 2: Bind video to video element
-      const stream = await getMainBackCameraStream();
-      const video = document.createElement("video");
-      video.setAttribute("autoplay", "");
-      video.setAttribute("muted", "");
-      video.setAttribute("playsinline", "");
-      video.srcObject = stream;
-      await video.play();
-
+      const video = await getSafeCameraVideoElement();
       await mindarThree.setVideoSource(video);
       await mindarThree.start();
 
@@ -161,8 +158,8 @@
     };
 
     startAR().catch(err => {
-      console.error("❌ AR start failed:", err);
-      alert("Failed to start AR. Please check permissions and try again.");
+      console.error("❌ AR failed to start:", err);
+      alert("Failed to start AR. Check camera permissions or try a different browser.");
     });
   </script>
 </body>
