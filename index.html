@@ -120,37 +120,42 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
-      // --- Stabilization state ---
-      const smoothedPosition = new THREE.Vector3();
-      const smoothedQuaternion = new THREE.Quaternion();
-      let initialized = false;
+     const smoothedPosition = new THREE.Vector3();
+const smoothedQuaternion = new THREE.Quaternion();
+let initialized = false;
 
-      // --- Render loop ---
-      renderer.setAnimationLoop(() => {
-        if (anchor.group.visible) {
-          if (!initialized) {
-            smoothedPosition.copy(anchor.group.position);
-            smoothedQuaternion.copy(anchor.group.quaternion);
-            initialized = true;
-          } else {
-            // Smooth movement
-            smoothedPosition.lerp(anchor.group.position, 0.15); 
-            smoothedQuaternion.slerp(anchor.group.quaternion, 0.15);
-          }
+renderer.setAnimationLoop(() => {
+  if (anchor.group.visible) {
+    if (!initialized) {
+      smoothedPosition.copy(anchor.group.position);
+      smoothedQuaternion.copy(anchor.group.quaternion);
+      initialized = true;
+    } else {
+      // Calculate distance and angle difference
+      const dist = smoothedPosition.distanceTo(anchor.group.position);
+      const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
 
-          group.position.copy(smoothedPosition);
-          group.quaternion.copy(smoothedQuaternion);
-        } else {
-          initialized = false; // reset when lost
-        }
+      // Adaptive smoothing factor
+      let factor = 0.25; // default (fast response)
+      if (dist < 0.01 && angle < 0.02) {
+        factor = 0.08; // stronger smoothing when almost still
+      } else if (dist < 0.03 && angle < 0.05) {
+        factor = 0.15; // medium
+      }
 
-        renderer.render(scene, camera);
-      });
+      // Apply smoothing
+      smoothedPosition.lerp(anchor.group.position, factor);
+      smoothedQuaternion.slerp(anchor.group.quaternion, factor);
+    }
 
-      window.addEventListener('resize', () => {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
-    };
+    group.position.copy(smoothedPosition);
+    group.quaternion.copy(smoothedQuaternion);
+  } else {
+    initialized = false; // reset when lost
+  }
+
+  renderer.render(scene, camera);
+});
 
     startAR();
   </script>
