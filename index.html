@@ -94,10 +94,6 @@
 
       anchor.group.add(group);
 
-      // Smoothing vectors
-      const smoothedPosition = new THREE.Vector3();
-      const smoothedQuaternion = new THREE.Quaternion();
-
       // Animate on detection
       anchor.onTargetFound = () => {
         setTimeout(() => {
@@ -111,7 +107,7 @@
             if (t < 1) requestAnimationFrame(animate);
           };
           requestAnimationFrame(animate);
-        }, 1000);
+        }, 500);
       };
 
       // Reset on lost
@@ -119,34 +115,42 @@
         group.scale.set(0.001, 0.001, 0.001);
       };
 
+      // --- Start AR before setting loop ---
       await mindarThree.start();
-      const smoothedPosition = new THREE.Vector3();
-      const smoothedQuaternion = new THREE.Quaternion();
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
+      // --- Stabilization state ---
+      const smoothedPosition = new THREE.Vector3();
+      const smoothedQuaternion = new THREE.Quaternion();
+      let initialized = false;
+
+      // --- Render loop ---
       renderer.setAnimationLoop(() => {
-      if (anchor.group.visible) {
-        if (!initialized) {
-      // Initialize with first detected values
-      smoothedPosition.copy(anchor.group.position);
-      smoothedQuaternion.copy(anchor.group.quaternion);
-      initialized = true;
-    } else {
-      // Apply stronger smoothing
-      smoothedPosition.lerp(anchor.group.position, 0.15); // 0.1–0.2 = smooth, adjust if laggy
-      smoothedQuaternion.slerp(anchor.group.quaternion, 0.15);
-    }
+        if (anchor.group.visible) {
+          if (!initialized) {
+            smoothedPosition.copy(anchor.group.position);
+            smoothedQuaternion.copy(anchor.group.quaternion);
+            initialized = true;
+          } else {
+            // Smooth movement
+            smoothedPosition.lerp(anchor.group.position, 0.15); 
+            smoothedQuaternion.slerp(anchor.group.quaternion, 0.15);
+          }
 
-    // Update your object with smoothed values
-    group.position.copy(smoothedPosition);
-    group.quaternion.copy(smoothedQuaternion);
-  } else {
-    initialized = false; // reset when lost
-  }
+          group.position.copy(smoothedPosition);
+          group.quaternion.copy(smoothedQuaternion);
+        } else {
+          initialized = false; // reset when lost
+        }
 
-  renderer.render(scene, camera);
-});
+        renderer.render(scene, camera);
+      });
+
+      window.addEventListener('resize', () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    };
 
     startAR();
   </script>
