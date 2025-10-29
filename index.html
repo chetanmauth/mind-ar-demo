@@ -70,7 +70,6 @@
       // Maintain background aspect ratio
       const trackerWidth = 1.0; 
       const trackerHeight = 1.0;
-      const bottomEdge=trackerHeight-(trackerHeight / 2);
       
       // Background plane (anchored at bottom)
       const bgGeometry = new THREE.PlaneGeometry(trackerWidth, trackerHeight);
@@ -81,7 +80,7 @@
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
       // move up by half its height so bottom sits on Y=0 (bottom of tracker)
-      bgPlane.position.set(0, 0, -1);
+      bgPlane.position.set(0, 0, -2);
       
       // Foreground plane (anchored at bottom)
       const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
