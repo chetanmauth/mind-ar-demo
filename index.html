@@ -77,7 +77,8 @@
         depthWrite: false
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-      bgPlane.position.set(0, 0, -0.05);
+      bgPlane.position.y = 0; 
+      bgPlane.position.z = -0.05;
 
       // Foreground plane
       const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
@@ -87,7 +88,8 @@
         depthWrite: false
       });
       const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-      fgPlane.position.set(0, 0, 0.1);
+      fgPlane.position.y = 0; 
+      fgPlane.position.z = 0.1;
 
       group.add(bgPlane);
       group.add(fgPlane);
@@ -102,7 +104,7 @@
       // Animate on detection
       anchor.onTargetFound = () => {
         setTimeout(() => {
-          const duration = 1000;
+          const duration = 100;
           const startTime = performance.now();
           const animate = (now) => {
             const elapsed = now - startTime;
@@ -112,7 +114,7 @@
             if (t < 1) requestAnimationFrame(animate);
           };
           requestAnimationFrame(animate);
-        }, 1000);
+        }, 100);
       };
 
       // Reset on lost
