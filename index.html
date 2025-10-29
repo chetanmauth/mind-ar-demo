@@ -60,18 +60,18 @@
 
       const imageWidth = 1.0;
       const imageHeight = 1.0;
-
+      
       // Load textures
       const backgroundTexture = await new Promise(resolve => {
         loader.load('./assets/background.jpg', resolve);
       });
       const foregroundTexture = loader.load('./assets/sat2farm.png');
       
-      // Keep same aspect ratio for background based on its image
+      // Maintain background aspect ratio
       const trackerWidth = 1.0; 
       const trackerHeight = backgroundTexture.image.height / backgroundTexture.image.width * trackerWidth;
       
-      // Background plane (centered)
+      // Background plane (anchored at bottom)
       const bgGeometry = new THREE.PlaneGeometry(trackerWidth, trackerHeight);
       const bgMaterial = new THREE.MeshBasicMaterial({
         map: backgroundTexture,
@@ -79,9 +79,10 @@
         depthWrite: false
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-      bgPlane.position.set(0, 0, -0.05); // Centered on X,Y; slightly behind
+      // move up by half its height so bottom sits on Y=0 (bottom of tracker)
+      bgPlane.position.set(0, trackerHeight / 2, -0.05);
       
-      // Foreground plane (centered)
+      // Foreground plane (anchored at bottom)
       const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
       const fgMaterial = new THREE.MeshBasicMaterial({
         map: foregroundTexture,
@@ -89,7 +90,7 @@
         depthWrite: false
       });
       const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-      fgPlane.position.set(0, 0, 0.1); // Centered on X,Y; slightly in front
+      fgPlane.position.set(0, imageHeight / 2, 0.1); // same logic — bottom at Y=0
       
       // Add both to group
       group.add(bgPlane);
