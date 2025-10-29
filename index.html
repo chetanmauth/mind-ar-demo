@@ -1,154 +1,150 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Parallax Stable</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR Parallax Stable</title>
 
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
 
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      background: black;
-    }
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: black;
+    }
 
-    #ar-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      z-index: 1;
-    }
+    #ar-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 1;
+    }
 
-    canvas {
-      display: block;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-  </style>
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
 </head>
 <body>
-  <div id="ar-container"></div>
+  <div id="ar-container"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
-  <script>
-    const startAR = async () => {
-      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.querySelector("#ar-container"),
-        imageTargetSrc: "./assets/targets.mind",
-        filterMinCF: 0.005,
-        filterBeta: 0.005,
-        missTolerance: 8,
-        warmupTolerance: 2
-      });
+  <script>
+    const startAR = async () => {
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+        container: document.querySelector("#ar-container"),
+        imageTargetSrc: "./assets/targets.mind",
+        filterMinCF: 0.005,
+        filterBeta: 0.005,
+        missTolerance: 8,
+        warmupTolerance: 2
+      });
 
-      const { renderer, scene, camera } = mindarThree;
-      const anchor = mindarThree.addAnchor(0);
+      const { renderer, scene, camera } = mindarThree;
+      const anchor = mindarThree.addAnchor(0);
 
-      const loader = new THREE.TextureLoader();
-      const group = new THREE.Group();
+      const loader = new THREE.TextureLoader();
+      const group = new THREE.Group();
 
-      const imageWidth = 0.8;
-      const imageHeight = 0.6;
+      const imageWidth = 0.8;
+      const imageHeight = 0.6;
 
-      // Load textures
-      const backgroundTexture = loader.load('./assets/background.jpg');
-      const foregroundTexture = loader.load('./assets/sat2farm.png');
+      // Load textures
+      const backgroundTexture = loader.load('./assets/background.jpg');
+      const foregroundTexture = loader.load('./assets/sat2farm.png');
 
-      // Background plane - Flat on the tracker, pushed back
-      const bgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
-      const bgMaterial = new THREE.MeshBasicMaterial({
-        map: backgroundTexture,
-        transparent: true,
-        depthWrite: false
-      });
-      const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-      // Position along the Z-axis (perpendicular to the marker)
-      bgPlane.position.set(0, 0, -0.05);
+      // Background plane
+      const bgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
+      const bgMaterial = new THREE.MeshBasicMaterial({
+        map: backgroundTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
+      bgPlane.position.y = imageHeight / 2;
+      bgPlane.position.z = -0.05;
 
-      // Foreground plane - Flat on the tracker, floating forward
-      const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
-      const fgMaterial = new THREE.MeshBasicMaterial({
-        map: foregroundTexture,
-        transparent: true,
-        depthWrite: false
-      });
-      const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-      // Position along the Z-axis (perpendicular to the marker)
-      fgPlane.position.set(0, 0, 0.1);
+      // Foreground plane
+      const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
+      const fgMaterial = new THREE.MeshBasicMaterial({
+        map: foregroundTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
+      fgPlane.position.y = imageHeight / 2;
+      fgPlane.position.z = 0.1;
 
-      group.add(bgPlane);
-      group.add(fgPlane);
-      // Removed: group.rotation.x = Math.PI / 2; (Keeps planes flat)
-      group.scale.set(0.001, 0.001, 0.001); // Start tiny
+      group.add(bgPlane);
+      group.add(fgPlane);
+      group.rotation.x = Math.PI / 2;
+      group.scale.set(0.001, 0.001, 0.001); // Start tiny
 
-      anchor.group.add(group);
+      anchor.group.add(group);
 
-      // Smoothing vectors for parallax stability
-      const smoothedPosition = new THREE.Vector3();
-      const smoothedQuaternion = new THREE.Quaternion();
+      // Smoothing vectors
+      const smoothedPosition = new THREE.Vector3();
+      const smoothedQuaternion = new THREE.Quaternion();
 
-      // Animate on detection
-      anchor.onTargetFound = () => {
-        // The timeout is necessary to give the engine time to stabilize the marker
-        setTimeout(() => {
-          const duration = 1000;
-          const startTime = performance.now();
-          const animate = (now) => {
-            const elapsed = now - startTime;
-            const t = Math.min(elapsed / duration, 1);
-            const scale = 0.001 + (1 - 0.001) * t;
-            group.scale.set(scale, scale, scale);
-            if (t < 1) requestAnimationFrame(animate);
-          };
-          requestAnimationFrame(animate);
-        }, 1000);
-      };
+      // Animate on detection
+      anchor.onTargetFound = () => {
+        setTimeout(() => {
+          const duration = 1000;
+          const startTime = performance.now();
+          const animate = (now) => {
+            const elapsed = now - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            const scale = 0.001 + (1 - 0.001) * t;
+            group.scale.set(scale, scale, scale);
+            if (t < 1) requestAnimationFrame(animate);
+          };
+          requestAnimationFrame(animate);
+        }, 1000);
+      };
 
-      // Reset on lost
-      anchor.onTargetLost = () => {
-        group.scale.set(0.001, 0.001, 0.001);
-      };
+      // Reset on lost
+      anchor.onTargetLost = () => {
+        group.scale.set(0.001, 0.001, 0.001);
+      };
 
-      await mindarThree.start();
-      
-      // The correct rendering loop uses mindarThree.renderer.setAnimationLoop
-      renderer.setAnimationLoop(() => {
-        // Custom stabilization (smoothing) logic
-        if (anchor.group.visible) {
-          const dist = smoothedPosition.distanceTo(anchor.group.position);
-          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
+      await mindarThree.start();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
 
-          if (dist > 0.0005 || angle > 0.001) {
-            // Apply smoothing (LERP/SLERP) to the values
-            smoothedPosition.lerp(anchor.group.position, 0.08);
-            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+      renderer.setAnimationLoop(() => {
+        if (anchor.group.visible) {
+          const dist = smoothedPosition.distanceTo(anchor.group.position);
+          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
 
-            // Apply smoothed values to the 'group' object
-            group.position.copy(smoothedPosition);
-            group.quaternion.copy(smoothedQuaternion);
-          }
-        }
+          if (dist > 0.0005 || angle > 0.001) {
+            smoothedPosition.lerp(anchor.group.position, 0.08);
+            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+            group.position.copy(smoothedPosition);
+            group.quaternion.copy(smoothedQuaternion);
+          }
+        }
 
-        renderer.render(scene, camera);
-      });
-      
-      window.addEventListener('resize', () => {
-        // MindAR handles camera updates internally, but we manually resize the renderer.
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
-    };
+        renderer.render(scene, camera);
+      });
 
-    startAR();
-  </script>
+      window.addEventListener('resize', () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    };
+
+    startAR();
+  </script>
 </body>
 </html>
