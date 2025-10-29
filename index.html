@@ -58,8 +58,8 @@
       const loader = new THREE.TextureLoader();
       const group = new THREE.Group();
 
-      const imageWidth = 0.8;
-      const imageHeight = 0.6;
+      const imageWidth = 1;
+      const imageHeight = 1;
 
       // Load textures
       const backgroundTexture = loader.load('./assets/background.jpg');
@@ -73,8 +73,7 @@
         depthWrite: false
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-      bgPlane.position.y = 0;
-      bgPlane.position.z = -0.05;
+      bgPlane.position.set(0, 0, -0.05);
 
       // Foreground plane
       const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
@@ -84,8 +83,7 @@
         depthWrite: false
       });
       const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-      fgPlane.position.y = imageHeight / 2;
-      fgPlane.position.z = 0.1;
+      fgPlane.position.set(0, 0, 0.1);
 
       group.add(bgPlane);
       group.add(fgPlane);
