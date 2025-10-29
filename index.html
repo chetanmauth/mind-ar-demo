@@ -73,7 +73,7 @@
         depthWrite: false
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-      bgPlane.position.y = imageHeight / 2;
+      bgPlane.position.y = 0;
       bgPlane.position.z = -0.05;
 
       // Foreground plane
@@ -89,7 +89,6 @@
 
       group.add(bgPlane);
       group.add(fgPlane);
-      group.rotation.x = Math.PI / 2;
       group.scale.set(0.001, 0.001, 0.001); // Start tiny
 
       anchor.group.add(group);
