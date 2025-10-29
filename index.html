@@ -88,17 +88,18 @@
 
       group.add(bgPlane);
       group.add(fgPlane);
-      // The rotation for flatness (group.rotation.x = Math.PI / 2) has been removed.
+      // Removed: group.rotation.x = Math.PI / 2; (Keeps planes flat)
       group.scale.set(0.001, 0.001, 0.001); // Start tiny
 
       anchor.group.add(group);
 
-      // Smoothing vectors
+      // Smoothing vectors for parallax stability
       const smoothedPosition = new THREE.Vector3();
       const smoothedQuaternion = new THREE.Quaternion();
 
       // Animate on detection
       anchor.onTargetFound = () => {
+        // The timeout is necessary to give the engine time to stabilize the marker
         setTimeout(() => {
           const duration = 1000;
           const startTime = performance.now();
@@ -119,17 +120,20 @@
       };
 
       await mindarThree.start();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
-
+      
+      // The correct rendering loop uses mindarThree.renderer.setAnimationLoop
       renderer.setAnimationLoop(() => {
+        // Custom stabilization (smoothing) logic
         if (anchor.group.visible) {
           const dist = smoothedPosition.distanceTo(anchor.group.position);
           const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
 
           if (dist > 0.0005 || angle > 0.001) {
+            // Apply smoothing (LERP/SLERP) to the values
             smoothedPosition.lerp(anchor.group.position, 0.08);
             smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+
+            // Apply smoothed values to the 'group' object
             group.position.copy(smoothedPosition);
             group.quaternion.copy(smoothedQuaternion);
           }
@@ -137,8 +141,9 @@
 
         renderer.render(scene, camera);
       });
-
+      
       window.addEventListener('resize', () => {
+        // MindAR handles camera updates internally, but we manually resize the renderer.
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
     };
