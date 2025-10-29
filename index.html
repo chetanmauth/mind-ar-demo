@@ -58,26 +58,25 @@
       const loader = new THREE.TextureLoader();
       const group = new THREE.Group();
 
-      const imageWidth =0.8;
-      const imageHeight =0.6;
-
+      const SQUARE_UNIT = 1.0;
+      
       // Load textures
       const backgroundTexture = await new Promise(resolve => {
         loader.load('./assets/background.jpg', resolve);
       });
       const foregroundTexture = loader.load('./assets/sat2farm.png');
 
-      const trackerWidth = 1.0; 
-      const trackerHeight = backgroundTexture.image.height / backgroundTexture.image.width * trackerWidth;
+      const backgroundWidth = SQUARE_UNIT; 
+      const backgroundHeight = backgroundTexture.image.height / backgroundTexture.image.width * backgroundWidth;
       // Background plane
-      const bgGeometry = new THREE.PlaneGeometry(trackerWidth, trackerHeight);
+      const bgGeometry = new THREE.PlaneGeometry(backgroundWidth, backgroundHeight);
       const bgMaterial = new THREE.MeshBasicMaterial({
         map: backgroundTexture,
         transparent: true,
         depthWrite: false
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-      bgPlane.position.y = 0; 
+      bgPlane.position.y = backgroundHeight / 2;
       bgPlane.position.z = -0.05;
 
       // Foreground plane
@@ -88,9 +87,9 @@
         depthWrite: false
       });
       const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-      fgPlane.position.y = 0; 
+      fgPlane.position.y = SQUARE_UNIT / 2; 
       fgPlane.position.z = 0.1;
-
+      
       group.add(bgPlane);
       group.add(fgPlane);
       group.scale.set(0.001, 0.001, 0.001); // Start tiny
