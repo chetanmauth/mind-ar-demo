@@ -59,18 +59,19 @@
       const group = new THREE.Group();
 
       const imageWidth = 1.0;
-      const imageHeight = 1.0;
+      const imageHeight = 1.0;
 
       // Load textures
       const backgroundTexture = await new Promise(resolve => {
-        loader.load('./assets/background.jpg', resolve);
-      });
+        loader.load('./assets/background.jpg', resolve);
+      });
       const foregroundTexture = loader.load('./assets/sat2farm.png');
-
+      
+      // Keep same aspect ratio for background based on its image
       const trackerWidth = 1.0; 
-      const trackerHeight = backgroundTexture.image.height / backgroundTexture.image.width * trackerWidth;
-          
-      // Background plane
+      const trackerHeight = backgroundTexture.image.height / backgroundTexture.image.width * trackerWidth;
+      
+      // Background plane (centered)
       const bgGeometry = new THREE.PlaneGeometry(trackerWidth, trackerHeight);
       const bgMaterial = new THREE.MeshBasicMaterial({
         map: backgroundTexture,
@@ -78,10 +79,9 @@
         depthWrite: false
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-      bgPlane.position.y = -(trackerHeight);
-      bgPlane.position.z = -0.05;
-
-      // Foreground plane
+      bgPlane.position.set(0, 0, -0.05); // Centered on X,Y; slightly behind
+      
+      // Foreground plane (centered)
       const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
       const fgMaterial = new THREE.MeshBasicMaterial({
         map: foregroundTexture,
@@ -89,14 +89,14 @@
         depthWrite: false
       });
       const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-      fgPlane.position.y = imageHeight / 2;
-      fgPlane.position.z = 0.1;
-
+      fgPlane.position.set(0, 0, 0.1); // Centered on X,Y; slightly in front
+      
+      // Add both to group
       group.add(bgPlane);
       group.add(fgPlane);
       group.scale.set(0.001, 0.001, 0.001); // Start tiny
-
       anchor.group.add(group);
+
 
       // Smoothing vectors
       const smoothedPosition = new THREE.Vector3();
