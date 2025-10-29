@@ -81,7 +81,6 @@
       bgPlane.position.z = -0.05;
 
       // Foreground plane
-      // *** FIX: Use SQUARE_UNIT for dimensions instead of undefined imageWidth/imageHeight ***
       const fgGeometry = new THREE.PlaneGeometry(SQUARE_UNIT, SQUARE_UNIT); 
       const fgMaterial = new THREE.MeshBasicMaterial({
         map: foregroundTexture,
@@ -124,8 +123,13 @@
       };
 
       await mindarThree.start();
+      
+      // Initial sizing
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
 
       renderer.setAnimationLoop(() => {
         if (anchor.group.visible) {
@@ -143,8 +147,11 @@
         renderer.render(scene, camera);
       });
 
+      // ** ENHANCED RESIZE LISTENER **
       window.addEventListener('resize', () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
       });
     };
 
