@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Parallax Stable (Switchable Camera)</title>
+  <title>AR Parallax Stable</title>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
 
   <style>
+    /* Basic setup to ensure full screen coverage */
     html, body {
       margin: 0;
       padding: 0;
@@ -16,6 +17,7 @@
       background: black;
     }
 
+    /* Container for the AR canvas and video feed */
     #ar-container {
       position: absolute;
       top: 0;
@@ -26,210 +28,93 @@
       z-index: 1;
     }
 
-    /* Style for the button */
-    #switchButton {
+    /* Standard canvas styling, though MindAR/Three.js manages it */
+    canvas {
+      display: block;
       position: absolute;
-      top: 20px;
-      right: 20px;
-      z-index: 10; /* Must be higher than AR content */
-      padding: 10px 15px;
-      background-color: #333;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 16px;
+      top: 0;
+      left: 0;
     }
   </style>
 </head>
 <body>
   <div id="ar-container"></div>
-  <button id="switchButton" style="display: none;">🔄 Switch Camera</button>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
   <script>
-    // Global variables to manage camera state
-    let mindarThree = null;
-    let availableCameras = [];
-    let currentCameraIndex = 0;
-    let videoStream = null;
-
-    // --- UTILITY FUNCTIONS ---
-
-    // Function to get the list of camera devices
-    const getDevices = async () => {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-            console.error("enumerateDevices() not supported.");
-            return [];
-        }
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        return devices.filter(device => device.kind === 'videoinput');
-    };
-
-    // Function to stop the current stream (crucial for switching)
-    const stopStream = () => {
-        if (videoStream) {
-            videoStream.getTracks().forEach(track => track.stop());
-            videoStream = null;
-        }
-    };
-
-    // Function to start a new stream for a given deviceId
-    const getStream = async (deviceId) => {
-        const constraints = {
-            video: {
-                deviceId: deviceId ? { exact: deviceId } : undefined,
-                width: { ideal: 1920 },
-                height: { ideal: 1080 }
-            },
-            audio: false
-        };
-
-        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-        return newStream;
-    };
-    
-    // --- CAMERA SWITCHING CORE LOGIC (Aggressive Restart) ---
-
-    const switchCamera = async () => {
-        if (availableCameras.length < 2 || !mindarThree) return; 
-
-        // 1. Calculate the next index
-        currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
-        const nextDeviceId = availableCameras[currentCameraIndex].deviceId;
-        
-        try {
-            // **Aggressive Restart Strategy:**
-            // Stop the AR engine and stream completely.
-            await mindarThree.stop();
-            stopStream();
-            
-            // 2. Get the new stream for the selected camera
-            const newStream = await getStream(nextDeviceId);
-            videoStream = newStream; // Update global stream reference
-            
-            // 3. Re-link and Restart MindAR with the new stream
-            
-            // IMPORTANT: Get the video element created by MindAR before starting it again
-            const videoElement = document.querySelector("video");
-
-            if (videoElement) {
-                // Force the video element to stop/reset
-                videoElement.pause();
-                videoElement.srcObject = null; 
-                
-                // Assign the new stream directly to the video element's source
-                videoElement.srcObject = newStream;
-            }
-            
-            // Restart the AR engine using the new stream
-            // MindAR's start() will try to play the video element
-            await mindarThree.switchCamera(newStream); 
-            await mindarThree.start(); 
-            
-            // 4. Force video play (safety measure for some browsers)
-            // Even after mindarThree.start(), we force play() again on the existing element
-            if (videoElement) {
-                 await videoElement.play().catch(e => console.error("Video play failed on restart:", e));
-            }
-            
-            // 5. Re-apply continuous autofocus
-            const track = newStream.getVideoTracks()[0];
-            const caps = track.getCapabilities();
-            if (caps.focusMode && caps.focusMode.includes("continuous")) {
-                await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(e => console.log("Failed to re-set continuous focus:", e));
-            }
-
-        } catch (err) {
-            console.error("Error during full camera switch/restart cycle:", err);
-            // Cycle back if the selected device fails
-            currentCameraIndex = (currentCameraIndex - 1 + availableCameras.length) % availableCameras.length;
-        }
-    };
-
-
-    // --- AR STARTUP LOGIC ---
-
     const startAR = async () => {
+      let stream;
       
-      availableCameras = await getDevices();
-      const switchButton = document.querySelector("#switchButton");
-      
-      // Determine the initial camera to use
-      let initialDeviceId;
-      if (availableCameras.length > 0) {
-          // Heuristic: Try to find the first 'environment' camera (usually the main one)
-          const environmentCam = availableCameras.find(d => d.label.toLowerCase().includes('environment') || d.label.toLowerCase().includes('back'));
-          
-          if (environmentCam) {
-              initialDeviceId = environmentCam.deviceId;
-              currentCameraIndex = availableCameras.findIndex(d => d.deviceId === initialDeviceId);
-          } else {
-              // Default to the first camera found
-              initialDeviceId = availableCameras[0].deviceId;
-              currentCameraIndex = 0;
-          }
-          
-          // Show the switch button if multiple cameras are available
-          if (availableCameras.length > 1) {
-              switchButton.style.display = 'block';
-              switchButton.addEventListener('click', switchCamera);
-          }
-      } else {
-          console.error("No camera devices found.");
-          document.querySelector("#ar-container").innerHTML = "<div style='color:white; padding:20px;'>No camera devices found.</div>";
-          return;
-      }
-
-      // 1. Get the initial stream
+      // --- 1. Camera Stream Acquisition (Force Environment Camera) ---
       try {
-          videoStream = await getStream(initialDeviceId);
+        // Attempt to get a high-resolution stream with strict, advanced constraints
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "environment", // Forces the back camera
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            focusMode: "continuous",
+            exposureMode: "continuous",
+            whiteBalanceMode: "continuous"
+          },
+          audio: false
+        });
       } catch (err) {
-          console.error("Failed to get initial camera stream:", err);
-          document.querySelector("#ar-container").innerHTML = "<div style='color:white; padding:20px;'>Camera access failed. Please ensure the page is loaded over HTTPS and camera permission is granted.</div>";
-          return;
+        // Fallback: If strict constraints fail (e.g., advanced modes unsupported), use softer constraints
+        console.warn("Strict camera constraints failed. Falling back to general environment mode.");
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        });
       }
 
-
-      // 2. MindAR Initialization
-      mindarThree = new window.MINDAR.IMAGE.MindARThree({
+      // --- 2. Initialize MindAR Engine ---
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
-        imageTargetSrc: "./assets/targets.mind",
-        videoStream: videoStream, // Pass the acquired stream
+        imageTargetSrc: "./assets/targets.mind", // Path to your target compilation file
+        videoStream: stream, // Pass the acquired stream to MindAR
+        // Tracking filters for stability (adjust based on environment)
         filterMinCF: 0.005,
         filterBeta: 0.005,
         missTolerance: 8,
         warmupTolerance: 2
       });
 
+      // Destructure core Three.js components from MindAR
       const { renderer, scene, camera } = mindarThree;
-      const anchor = mindarThree.addAnchor(0);
+      const anchor = mindarThree.addAnchor(0); // Anchor for the first target in targets.mind
 
-      // --- 3. Scene Setup ---
+      // --- 3. Scene Setup (3D Content) ---
       const loader = new THREE.TextureLoader();
       const group = new THREE.Group();
+
       const imageWidth = 1.0;
       const imageHeight = 1.0;
       
+      // Load textures asynchronously
       const backgroundTexture = await new Promise(resolve => {
         loader.load('./assets/background.png', resolve);
       });
       const foregroundTexture = loader.load('./assets/sat2farm.png');
+      
       const trackerWidth = 1.0; 
       const trackerHeight = 1.0;
       
+      // Background Plane (placed further back in Z-axis)
       const bgGeometry = new THREE.PlaneGeometry(trackerWidth, trackerHeight);
       const bgMaterial = new THREE.MeshBasicMaterial({
         map: backgroundTexture,
         transparent: true,
-        depthWrite: false
+        depthWrite: false // Helps with rendering order against the camera feed
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
       bgPlane.scale.set(1.8, 1.8, 1);
-      bgPlane.position.set(0, -0.25, 0.05);
+      // Position Z=0.05 (slightly behind the foreground)
+      bgPlane.position.set(0, -0.25, 0.05); 
       
+      // Foreground Plane (placed closer in Z-axis)
       const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
       const fgMaterial = new THREE.MeshBasicMaterial({
         map: foregroundTexture,
@@ -237,17 +122,23 @@
         depthWrite: false
       });
       const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
+      // Position Z=0.1 (closer to the camera/user than the background)
       fgPlane.position.set(0,-0.25, 0.1); 
       
+      // Add both planes to a single group for easy transformation
       group.add(bgPlane);
       group.add(fgPlane);
-      group.scale.set(0.001, 0.001, 0.001); 
-      anchor.group.add(group);
+      group.scale.set(0.001, 0.001, 0.001); // Initial tiny scale for the zoom-in effect
+      anchor.group.add(group); // Add the content group to the MindAR anchor
 
-      // --- 4. Animation and Event Handlers ---
+
+      // --- 4. Smoothing and Animation Setup ---
+      
+      // Vectors for smoothing the object's movement (reduces jitter)
       const smoothedPosition = new THREE.Vector3();
       const smoothedQuaternion = new THREE.Quaternion();
 
+      // Animate scale on target detection (zoom-in effect)
       anchor.onTargetFound = () => {
         setTimeout(() => {
           const duration = 100;
@@ -255,6 +146,7 @@
           const animate = (now) => {
             const elapsed = now - startTime;
             const t = Math.min(elapsed / duration, 1);
+            // Lerp scale from tiny (0.001) to full (1)
             const scale = 0.001 + (1 - 0.001) * t;
             group.scale.set(scale, scale, scale);
             if (t < 1) requestAnimationFrame(animate);
@@ -263,15 +155,29 @@
         }, 100);
       };
 
+      // Reset scale when the target is lost
       anchor.onTargetLost = () => {
         group.scale.set(0.001, 0.001, 0.001);
       };
 
+      // --- 5. Start AR Engine and Post-Start Camera Setup ---
+      
       await mindarThree.start();
 
-      // Tap to refocus logic (applies to the currently active video element)
+      // Find the video element MindAR created
+      const video = document.querySelector("video");
+      
+      // Try enabling continuous autofocus on start (if not already set in constraints)
+      if (video && video.srcObject) {
+        const track = video.srcObject.getVideoTracks()[0];
+        const caps = track.getCapabilities();
+        if (caps.focusMode && caps.focusMode.includes("continuous")) {
+          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(()=>{});
+        }
+      }
+
+      // Tap to refocus (single-shot)
       document.body.addEventListener("click", async () => {
-        const video = document.querySelector("video");
         if (video && video.srcObject) {
           const track = video.srcObject.getVideoTracks()[0];
           const caps = track.getCapabilities();
@@ -281,34 +187,8 @@
         }
       });
 
+      // --- 6. Rendering Loop ---
+      
+      // Set renderer size and pixel ratio for high quality
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
-
-      renderer.setAnimationLoop(() => {
-        if (anchor.group.visible) {
-          const dist = smoothedPosition.distanceTo(anchor.group.position);
-          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
-
-          if (dist > 0.0005 || angle > 0.001) {
-            smoothedPosition.lerp(anchor.group.position, 0.08);
-            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
-            group.position.copy(smoothedPosition);
-            group.quaternion.copy(smoothedQuaternion);
-          }
-        }
-
-        renderer.render(scene, camera);
-      });
-
-      window.addEventListener("resize", () => {
-          renderer.setSize(window.innerWidth, window.innerHeight);
-      });
-      
-      // Stop the stream when the window closes to release camera resources
-      window.addEventListener('beforeunload', stopStream);
-    };
-
-    startAR();
-  </script>
-</body>
-</html>
