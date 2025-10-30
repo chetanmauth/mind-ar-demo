@@ -1,204 +1,246 @@
 <!DOCTYPE html>
 <html lang="en">
-   <head>
-      <meta charset="UTF-8" />
-      <meta
-         name="viewport"
-         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-      />
-      <title>AR Parallax Stable</title>
-      <link
-         rel="stylesheet"
-         href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css"
-      />
-      <style>
-         html,
-         body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden;
-            background: black;
-         }
-         #ar-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-            z-index: 1;
-         }
-         canvas {
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-         }
-      </style>
-   </head>
-   <body>
-      <div id="ar-container"></div>
-      <!-- Scripts -->
-      <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-      <script>
-         const startAR = async () => {
-            let stream;
-            try {
-               stream = await navigator.mediaDevices.getUserMedia({
-                  video: {
-                     facingMode:  "environment",
-                     width: { ideal: 1920 },
-                     height: { ideal: 1080 },
-                     focusMode: "continuous",
-                     exposureMode: "continuous",
-                     whiteBalanceMode: "continuous",
-                  },
-                  audio: false,
-               });
-            } catch (err) {
-               console.warn("Environment camera failed with ideal res, falling back.", err);
-                stream = await navigator.mediaDevices.getUserMedia({
-                  video: true, // Let the browser choose any available camera/resolution
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR Parallax Stable (Force Back Camera)</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: black;
+    }
+
+    /* The video element is added by MindAR, but ensure the container is ready */
+    #ar-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="ar-container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+
+  <script>
+    const startAR = async () => {
+      let stream;
+      let mainCameraId = null;
+
+      // --- 1. DEVICE ENUMERATION AND SELECTION ---
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+          // Attempt to find the back-facing camera by label
+          for (const device of videoDevices) {
+            const label = device.label.toLowerCase();
+            // Look for common labels or facing mode hints
+            if (label.includes('back') || label.includes('environment')) {
+                mainCameraId = device.deviceId;
+                break; 
+            }
+          }
+
+          // Fallback: If no label clue, try to use the last device (common for back cameras)
+          if (!mainCameraId && videoDevices.length > 0) {
+              // Note: This is less reliable but often works on older devices
+              mainCameraId = videoDevices[videoDevices.length - 1].deviceId;
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to enumerate devices:", e);
+      }
+
+      // --- 2. GET USER MEDIA WITH SPECIFIC CONSTRAINTS ---
+      
+      const idealConstraints = {
+          video: {
+              // A. Use specific ID if found, with 'exact' to enforce
+              deviceId: mainCameraId ? { exact: mainCameraId } : undefined,
+              // B. Add soft facingMode as a hint if deviceId isn't available
+              facingMode: mainCameraId ? undefined : 'environment', 
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+          },
+          audio: false
+      };
+
+      try {
+          // Attempt the ideal, forced back camera stream
+          stream = await navigator.mediaDevices.getUserMedia(idealConstraints);
+      } catch (err) {
+          console.warn("Forced deviceId/environment failed. Falling back to soft 'environment':", err);
+          
+          // Fallback 1: Simple soft environment request
+          try {
+              stream = await navigator.mediaDevices.getUserMedia({
+                  video: { facingMode: "environment" },
                   audio: false
-                })
-            }
-            if (stream) {
-                const track = stream.getVideoTracks()[0];
-                const caps = track.getCapabilities();
-                
-                // Attempt to set continuous focus *after* stream acquisition
-                if (caps.focusMode && caps.focusMode.includes("continuous")) {
-                    await track.applyConstraints({ focusMode: "continuous" }).catch(e => console.log("Failed to set continuous focus:", e));
-                }
-            }
-            
-            const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-               container: document.querySelector("#ar-container"),
-               imageTargetSrc: "./assets/targets.mind",
-               videoStream: stream,
-               filterMinCF: 0.005,
-               filterBeta: 0.005,
-               missTolerance: 8,
-               warmupTolerance: 2,
-            });
-            const { renderer, scene, camera } = mindarThree;
-            const anchor = mindarThree.addAnchor(0);
-            const loader = new THREE.TextureLoader();
-            const group = new THREE.Group();
-            
-            const imageWidth = 1.0;
-            const imageHeight = 1.0;
-            
-            const backgroundTexture = await new Promise((resolve) => {
-               loader.load("./assets/background.png", resolve);
-            });
-            const foregroundTexture = loader.load("./assets/sat2farm.png");
-            
-            const trackerWidth = 1.0;
-            const trackerHeight = 1.0;
-            
-            const bgGeometry = new THREE.PlaneGeometry(
-               trackerWidth,
-               trackerHeight,
-            );
-            const bgMaterial = new THREE.MeshBasicMaterial({
-               map: backgroundTexture,
-               transparent: true,
-               depthWrite: false,
-            });
-            const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-            bgPlane.scale.set(1.8, 1.8, 1);
-            bgPlane.position.set(0, -0.25, 0.05);
-            
-            const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
-            const fgMaterial = new THREE.MeshBasicMaterial({
-               map: foregroundTexture,
-               transparent: true,
-               depthWrite: false,
-            });
-            
-            const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-            fgPlane.position.set(0, -0.25, 0.1);
-            group.add(bgPlane);
-            group.add(fgPlane);
-            group.scale.set(0.001, 0.001, 0.001);
-            anchor.group.add(group);
-            
-            const smoothedPosition = new THREE.Vector3();
-            const smoothedQuaternion = new THREE.Quaternion();
-            
-            anchor.onTargetFound = () => {
-               setTimeout(() => {
-                  const duration = 100;
-                  const startTime = performance.now();
-                  const animate = (now) => {
-                     const elapsed = now - startTime;
-                     const t = Math.min(elapsed / duration, 1);
-                     const scale = 0.001 + (1 - 0.001) * t;
-                     group.scale.set(scale, scale, scale);
-                     if (t < 1) requestAnimationFrame(animate);
-                  };
-                  requestAnimationFrame(animate);
-               }, 100);
-            };
-            anchor.onTargetLost = () => {
-               group.scale.set(0.001, 0.001, 0.001);
-            };
-            await mindarThree.start();
-            const video = document.querySelector("video");
-            if (video && video.srcObject) {
-               const track = video.srcObject.getVideoTracks()[0];
-               const caps = track.getCapabilities();
-               if (caps.focusMode && caps.focusMode.includes("continuous")) {
-                  await track
-                     .applyConstraints({
-                        advanced: [{ focusMode: "continuous" }],
-                     })
-                     .catch(() => {});
-               }
-            }
-            ocument.body.addEventListener("click", async () => {
-               if (video && video.srcObject) {
-                  const track = video.srcObject.getVideoTracks()[0];
-                  const caps = track.getCapabilities();
-                  if (
-                     caps.focusMode &&
-                     caps.focusMode.includes("single-shot")
-                  ) {
-                     await track
-                        .applyConstraints({
-                           advanced: [{ focusMode: "single-shot" }],
-                        })
-                        .catch(() => {});
-                  }
-               }
-            });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setAnimationLoop(() => {
-               if (anchor.group.visible) {
-                  const dist = smoothedPosition.distanceTo(
-                     anchor.group.position,
-                  );
-                  const angle = smoothedQuaternion.angleTo(
-                     anchor.group.quaternion,
-                  );
-                  if (dist > 0.0005 || angle > 0.001) {
-                     smoothedPosition.lerp(anchor.group.position, 0.08);
-                     smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
-                     group.position.copy(smoothedPosition);
-                     group.quaternion.copy(smoothedQuaternion);
-                  }
-               }
-               renderer.render(scene, camera);
-            });
-            window.addEventListener("resize", () => {
-               scene.renderer.setSize(window.innerWidth, window.innerHeight);
-            });
-         };
-         startAR();
-      </script>
-   </body>
+              });
+          } catch(fallbackErr) {
+              console.error("All camera requests failed. AR cannot start:", fallbackErr);
+              // Display an error to the user if all camera access fails
+              document.querySelector("#ar-container").innerHTML = "<div style='color:white; padding:20px;'>Camera access failed. Please ensure the page is loaded over HTTPS and camera permission is granted.</div>";
+              return; 
+          }
+      }
+
+      // --- 3. APPLY AUTOFOCUS CONSTRAINTS (After Stream is Acquired) ---
+      let video;
+      if (stream) {
+          const track = stream.getVideoTracks()[0];
+          const caps = track.getCapabilities();
+
+          // Try to enable continuous autofocus, which often helps AR stability
+          if (caps.focusMode && caps.focusMode.includes("continuous")) {
+              await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(e => console.log("Failed to set continuous focus:", e));
+          }
+          
+          // MindAR creates the video element, so we look for it after initialization,
+          // but we set up the variable for later use.
+          video = document.querySelector("video");
+      }
+
+
+      // --- 4. MINDAR INITIALIZATION ---
+
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+        container: document.querySelector("#ar-container"),
+        imageTargetSrc: "./assets/targets.mind",
+        videoStream: stream, // Pass the acquired stream to MindAR
+        filterMinCF: 0.005,
+        filterBeta: 0.005,
+        missTolerance: 8,
+        warmupTolerance: 2
+      });
+
+      const { renderer, scene, camera } = mindarThree;
+      const anchor = mindarThree.addAnchor(0);
+
+      const loader = new THREE.TextureLoader();
+      const group = new THREE.Group();
+
+      const imageWidth = 1.0;
+      const imageHeight = 1.0;
+      
+      // Load textures
+      const backgroundTexture = await new Promise(resolve => {
+        loader.load('./assets/background.png', resolve);
+      });
+      const foregroundTexture = loader.load('./assets/sat2farm.png');
+      
+      // Maintain background aspect ratio
+      const trackerWidth = 1.0; 
+      const trackerHeight = 1.0;
+      
+      // Background plane (anchored at bottom)
+      const bgGeometry = new THREE.PlaneGeometry(trackerWidth, trackerHeight);
+      const bgMaterial = new THREE.MeshBasicMaterial({
+        map: backgroundTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
+      bgPlane.scale.set(1.8, 1.8, 1);
+      bgPlane.position.set(0, -0.25, 0.05);
+      
+      // Foreground plane (anchored at bottom)
+      const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
+      const fgMaterial = new THREE.MeshBasicMaterial({
+        map: foregroundTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
+      fgPlane.position.set(0,-0.25, 0.1); 
+      
+      // Add both to group
+      group.add(bgPlane);
+      group.add(fgPlane);
+      group.scale.set(0.001, 0.001, 0.001); // Start tiny
+      anchor.group.add(group);
+
+
+      // Smoothing vectors
+      const smoothedPosition = new THREE.Vector3();
+      const smoothedQuaternion = new THREE.Quaternion();
+
+      // Animate on detection
+      anchor.onTargetFound = () => {
+        setTimeout(() => {
+          const duration = 100;
+          const startTime = performance.now();
+          const animate = (now) => {
+            const elapsed = now - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            const scale = 0.001 + (1 - 0.001) * t;
+            group.scale.set(scale, scale, scale);
+            if (t < 1) requestAnimationFrame(animate);
+          };
+          requestAnimationFrame(animate);
+        }, 100);
+      };
+
+      // Reset on lost
+      anchor.onTargetLost = () => {
+        group.scale.set(0.001, 0.001, 0.001);
+      };
+
+      
+      await mindarThree.start();
+
+      // Tap to refocus (MindAR video element should be available now)
+      document.body.addEventListener("click", async () => {
+        // Find the video element created by MindAR
+        const video = document.querySelector("video");
+        if (video && video.srcObject) {
+          const track = video.srcObject.getVideoTracks()[0];
+          const caps = track.getCapabilities();
+          if (caps.focusMode && caps.focusMode.includes("single-shot")) {
+            await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] }).catch(()=>{});
+          }
+        }
+      });
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+
+      renderer.setAnimationLoop(() => {
+        if (anchor.group.visible) {
+          const dist = smoothedPosition.distanceTo(anchor.group.position);
+          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
+
+          if (dist > 0.0005 || angle > 0.001) {
+            smoothedPosition.lerp(anchor.group.position, 0.08);
+            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+            group.position.copy(smoothedPosition);
+            group.quaternion.copy(smoothedQuaternion);
+          }
+        }
+
+        renderer.render(scene, camera);
+      });
+
+      window.addEventListener("resize", () => {
+          renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    };
+
+    startAR();
+  </script>
+</body>
 </html>
