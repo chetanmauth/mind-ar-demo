@@ -192,3 +192,33 @@
       // Set renderer size and pixel ratio for high quality
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
+
+      renderer.setAnimationLoop(() => {
+        // Apply smoothing to the content group's position and rotation
+        if (anchor.group.visible) {
+          const dist = smoothedPosition.distanceTo(anchor.group.position);
+          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
+
+          // Only update if movement or rotation is significant
+          if (dist > 0.0005 || angle > 0.001) {
+            // Lerp (linear interpolation) for smoothing
+            smoothedPosition.lerp(anchor.group.position, 0.08);
+            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+            group.position.copy(smoothedPosition);
+            group.quaternion.copy(smoothedQuaternion);
+          }
+        }
+
+        renderer.render(scene, camera);
+      });
+
+      // Handle window resize events
+      window.addEventListener("resize", () => {
+          renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    };
+
+    startAR();
+  </script>
+</body>
+</html>
