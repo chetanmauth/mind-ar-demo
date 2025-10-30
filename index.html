@@ -126,6 +126,14 @@
       };
 
       await mindarThree.start();
+      const video = document.querySelector("video");
+      if (video && video.srcObject) {
+        const track = video.srcObject.getVideoTracks()[0];
+        if (track && track.getCapabilities().focusMode) {
+          track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+        }
+      }
+      
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
@@ -145,8 +153,21 @@
         renderer.render(scene, camera);
       });
 
-      window.addEventListener('resize', () => {
-        renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.addEventListener("click", () => {
+        const video = document.querySelector("video");
+        if (video && video.srcObject) {
+          const track = video.srcObject.getVideoTracks()[0];
+          if (track && track.getCapabilities().focusMode) {
+            track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+          }
+        }
+      });
+
+      window.addEventListener("resize", () => {
+        const scene = document.querySelector("a-scene");
+        if (scene && scene.renderer) {
+          scene.renderer.setSize(window.innerWidth, window.innerHeight);
+        }
       });
     };
 
