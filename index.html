@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Parallax Stable</title>
+  <title>AR Parallax Stable (Switchable Camera)</title>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
 
@@ -78,8 +78,6 @@
 
     // Function to start a new stream for a given deviceId
     const getStream = async (deviceId) => {
-        stopStream(); // Ensure previous stream is closed
-
         const constraints = {
             video: {
                 deviceId: deviceId ? { exact: deviceId } : undefined,
@@ -89,28 +87,42 @@
             audio: false
         };
 
-        videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-        return videoStream;
+        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+        return newStream;
     };
     
-    // --- CAMERA SWITCHING CORE LOGIC ---
+    // --- CAMERA SWITCHING CORE LOGIC (Aggressive Restart) ---
 
     const switchCamera = async () => {
-        if (availableCameras.length < 2) return; // Only switch if more than one camera
+        if (availableCameras.length < 2 || !mindarThree) return; 
 
-        // Cycle to the next camera index
+        // 1. Calculate the next index
         currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
         const nextDeviceId = availableCameras[currentCameraIndex].deviceId;
-
+        
         try {
+            // **Aggressive Restart Strategy:**
+            // Stop the AR engine and stream completely.
+            await mindarThree.stop();
+            stopStream();
+            
+            // 2. Get the new stream for the selected camera
             const newStream = await getStream(nextDeviceId);
-
-            if (mindarThree) {
-                // MindAR provides a method to change the stream
-                await mindarThree.switchCamera(newStream); 
+            videoStream = newStream; // Update global stream reference
+            
+            // 3. Re-link and Restart MindAR with the new stream
+            // NOTE: We MUST re-start MindAR with the new stream to reset the context
+            await mindarThree.switchCamera(newStream); 
+            await mindarThree.start(); 
+            
+            // 4. Force video play (safety measure for some browsers)
+            const videoElement = document.querySelector("video");
+            if (videoElement) {
+                 videoElement.srcObject = newStream;
+                 await videoElement.play().catch(e => console.error("Video play failed:", e));
             }
             
-            // Re-apply autofocus (MindAR might recreate the video element, but the track remains the same)
+            // 5. Re-apply continuous autofocus
             const track = newStream.getVideoTracks()[0];
             const caps = track.getCapabilities();
             if (caps.focusMode && caps.focusMode.includes("continuous")) {
@@ -118,8 +130,8 @@
             }
 
         } catch (err) {
-            console.error("Error switching camera:", err);
-            // Optionally cycle back if the selected device fails
+            console.error("Error during full camera switch/restart cycle:", err);
+            // Cycle back if the selected device fails
             currentCameraIndex = (currentCameraIndex - 1 + availableCameras.length) % availableCameras.length;
         }
     };
@@ -142,7 +154,7 @@
               initialDeviceId = environmentCam.deviceId;
               currentCameraIndex = availableCameras.findIndex(d => d.deviceId === initialDeviceId);
           } else {
-              // Default to the first camera found (often the front camera)
+              // Default to the first camera found
               initialDeviceId = availableCameras[0].deviceId;
               currentCameraIndex = 0;
           }
@@ -154,6 +166,7 @@
           }
       } else {
           console.error("No camera devices found.");
+          document.querySelector("#ar-container").innerHTML = "<div style='color:white; padding:20px;'>No camera devices found.</div>";
           return;
       }
 
@@ -181,7 +194,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // --- 3. Scene Setup (Same as before) ---
+      // --- 3. Scene Setup ---
       const loader = new THREE.TextureLoader();
       const group = new THREE.Group();
       const imageWidth = 1.0;
@@ -243,7 +256,7 @@
 
       await mindarThree.start();
 
-      // Tap to refocus logic
+      // Tap to refocus logic (applies to the currently active video element)
       document.body.addEventListener("click", async () => {
         const video = document.querySelector("video");
         if (video && video.srcObject) {
@@ -277,6 +290,9 @@
       window.addEventListener("resize", () => {
           renderer.setSize(window.innerWidth, window.innerHeight);
       });
+      
+      // Stop the stream when the window closes to release camera resources
+      window.addEventListener('beforeunload', stopStream);
     };
 
     startAR();
