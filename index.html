@@ -46,21 +46,11 @@
       
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { exact: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            focusMode: "continuous",
-            exposureMode: "continuous",
-            whiteBalanceMode: "continuous"
-          },
-          audio: false
-        });
+        stream = await getMainBackCameraStream();
       } catch (err) {
-        // Fallback if strict constraints fail
+        console.error("Camera selection failed, using fallback:", err);
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: "environment" },
           audio: false
         });
       }
@@ -195,9 +185,53 @@
       window.addEventListener("resize", () => {
           scene.renderer.setSize(window.innerWidth, window.innerHeight);
       });
+
+      // 🔍 Get the main (wide) back camera instead of ultra-wide
+      async function getMainBackCameraStream() {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === "videoinput");
+      
+        // Filter for rear/back cameras
+        const backCameras = videoDevices.filter(d =>
+          d.label.toLowerCase().includes("back") ||
+          d.label.toLowerCase().includes("rear")
+        );
+      
+        // Prefer the one that includes "wide" or "main"
+        let selectedCamera = backCameras.find(d =>
+          d.label.toLowerCase().includes("wide") || d.label.toLowerCase().includes("main")
+        );
+      
+        // Fallback: last back camera if "wide" not found
+        if (!selectedCamera && backCameras.length > 0) {
+          selectedCamera = backCameras[backCameras.length - 1];
+        }
+      
+        // Fallback to default environment camera
+        if (!selectedCamera && videoDevices.length > 0) {
+          selectedCamera = videoDevices.find(d =>
+            d.label.toLowerCase().includes("environment")
+          ) || videoDevices[0];
+        }
+      
+        const constraints = {
+          video: {
+            deviceId: selectedCamera ? { exact: selectedCamera.deviceId } : undefined,
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            focusMode: "continuous"
+          },
+          audio: false
+        };
+      
+        return await navigator.mediaDevices.getUserMedia(constraints);
+      }
+
     };
 
     startAR();
+
+    
   </script>
 </body>
 </html>
