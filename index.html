@@ -37,47 +37,48 @@
   <script>
     const startAR = async () => {
       let stream;
-      let mainCameraId = null;
+    let mainCameraId = null;
 
-      // --- 1. DEVICE ENUMERATION AND SELECTION ---
-      try {
+    // --- 1. DEVICE ENUMERATION AND SELECTION ---
+    try {
         if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-          // Attempt to find the back-facing camera by label
-          for (const device of videoDevices) {
-            const label = device.label.toLowerCase();
-            // Look for common labels or facing mode hints
-            if (label.includes('back') || label.includes('environment')) {
-                mainCameraId = device.deviceId;
-                break; 
+            // Heuristic 1: Find the first device that has an 'environment' facingMode.
+            // This is the most reliable way to distinguish front from back.
+            const backCameras = videoDevices.filter(device => {
+                // device.getCapabilities() might be too slow/async.
+                // We rely on label/position for this aggressive selection.
+                const label = device.label.toLowerCase();
+                // We assume the first camera *not* labeled 'front' or 'user' is the main one.
+                return !label.includes('front') && !label.includes('user');
+            });
+
+            // Heuristic 2: Select the FIRST camera from the back-facing list.
+            // On many Androids, the primary (standard wide) lens is listed first.
+            if (backCameras.length > 0) {
+                mainCameraId = backCameras[0].deviceId;
+                console.log("Selected device ID based on FIRST back camera heuristic.");
             }
-          }
-
-          // Fallback: If no label clue, try to use the last device (common for back cameras)
-          if (!mainCameraId && videoDevices.length > 0) {
-              // Note: This is less reliable but often works on older devices
-              mainCameraId = videoDevices[videoDevices.length - 1].deviceId;
-          }
         }
-      } catch (e) {
+    } catch (e) {
         console.warn("Failed to enumerate devices:", e);
-      }
+    }
+    
+    // --- 2. GET USER MEDIA WITH SPECIFIC CONSTRAINTS ---
 
-      // --- 2. GET USER MEDIA WITH SPECIFIC CONSTRAINTS ---
-      
-      const idealConstraints = {
-          video: {
-              // A. Use specific ID if found, with 'exact' to enforce
-              deviceId: mainCameraId ? { exact: mainCameraId } : undefined,
-              // B. Add soft facingMode as a hint if deviceId isn't available
-              facingMode: mainCameraId ? undefined : 'environment', 
-              width: { ideal: 1920 },
-              height: { ideal: 1080 }
-          },
-          audio: false
-      };
+    const idealConstraints = {
+        video: {
+            // Force the deviceId we found
+            deviceId: mainCameraId ? { exact: mainCameraId } : undefined,
+            // Keep facingMode as a general fallback/hint
+            facingMode: mainCameraId ? undefined : 'environment', 
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+        },
+        audio: false
+    };
 
       try {
           // Attempt the ideal, forced back camera stream
