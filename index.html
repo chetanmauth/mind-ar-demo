@@ -48,7 +48,7 @@
             try {
                stream = await navigator.mediaDevices.getUserMedia({
                   video: {
-                     facingMode: { exact: "environment" },
+                     facingMode:  "environment",
                      width: { ideal: 1920 },
                      height: { ideal: 1080 },
                      focusMode: "continuous",
@@ -58,15 +58,22 @@
                   audio: false,
                });
             } catch (err) {
-               stream = await navigator.mediaDevices.getUserMedia({
-                  video: {
-                     facingMode: "environment",
-                     width: { ideal: 1280 },
-                     height: { ideal: 720 },
-                  },
-                  audio: false,
-               });
+               console.warn("Environment camera failed with ideal res, falling back.", err);
+                stream = await navigator.mediaDevices.getUserMedia({
+                  video: true, // Let the browser choose any available camera/resolution
+                  audio: false
+                })
             }
+            if (stream) {
+                const track = stream.getVideoTracks()[0];
+                const caps = track.getCapabilities();
+                
+                // Attempt to set continuous focus *after* stream acquisition
+                if (caps.focusMode && caps.focusMode.includes("continuous")) {
+                    await track.applyConstraints({ focusMode: "continuous" }).catch(e => console.log("Failed to set continuous focus:", e));
+                }
+            }
+            
             const mindarThree = new window.MINDAR.IMAGE.MindARThree({
                container: document.querySelector("#ar-container"),
                imageTargetSrc: "./assets/targets.mind",
@@ -80,14 +87,18 @@
             const anchor = mindarThree.addAnchor(0);
             const loader = new THREE.TextureLoader();
             const group = new THREE.Group();
+            
             const imageWidth = 1.0;
             const imageHeight = 1.0;
+            
             const backgroundTexture = await new Promise((resolve) => {
                loader.load("./assets/background.png", resolve);
             });
             const foregroundTexture = loader.load("./assets/sat2farm.png");
+            
             const trackerWidth = 1.0;
             const trackerHeight = 1.0;
+            
             const bgGeometry = new THREE.PlaneGeometry(
                trackerWidth,
                trackerHeight,
@@ -100,20 +111,24 @@
             const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
             bgPlane.scale.set(1.8, 1.8, 1);
             bgPlane.position.set(0, -0.25, 0.05);
+            
             const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
             const fgMaterial = new THREE.MeshBasicMaterial({
                map: foregroundTexture,
                transparent: true,
                depthWrite: false,
             });
+            
             const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
             fgPlane.position.set(0, -0.25, 0.1);
             group.add(bgPlane);
             group.add(fgPlane);
             group.scale.set(0.001, 0.001, 0.001);
             anchor.group.add(group);
+            
             const smoothedPosition = new THREE.Vector3();
             const smoothedQuaternion = new THREE.Quaternion();
+            
             anchor.onTargetFound = () => {
                setTimeout(() => {
                   const duration = 100;
