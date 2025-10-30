@@ -1,86 +1,155 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>MindAR Invitation</title>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR Parallax Stable</title>
 
-    <!-- MindAR + A-Frame -->
-    <script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
 
-    <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        height: 100%;
-        background: #000;
-      }
-      #ar-scene {
-        width: 100%;
-        height: 100%;
-      }
-      .mindar-ui-overlay {
-        position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        pointer-events: none;
-      }
-    </style>
-  </head>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: black;
+    }
 
-  <body>
-    <a-scene
-      id="ar-scene"
-      mindar-image="imageTargetSrc: https://chetanmauth.github.io/mind-ar-demo/assets/targets.mind; filterMinCF:0.001; filterBeta: 0.02"
-      color-space="sRGB"
-      embedded
-      device-orientation-permission-ui="enabled: true"
-      vr-mode-ui="enabled: false"
-      renderer="antialias: true; precision: mediump;"
-      gesture-detector
-      arjs="sourceType: webcam; debugUIEnabled: false;"
-    >
-      <a-assets>
-        <img id="invitation" src="https://chetanmauth.github.io/mind-ar-demo/assets/invitation.jpg" />
-      </a-assets>
+    #ar-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 1;
+    }
 
-      <!-- Target -->
-      <a-entity mindar-image-target="targetIndex: 0">
-        <a-plane
-          src="#invitation"
-          position="0 0 0"
-          rotation="0 0 0"
-          width="1"
-          height="1.4"
-          smooth="true"
-          shadow="receive: true"
-        ></a-plane>
-      </a-entity>
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="ar-container"></div>
 
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-    </a-scene>
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
-    <script>
-      // ✅ Tap to trigger camera focus (works on most Android browsers)
-      document.body.addEventListener("click", () => {
-        const video = document.querySelector("video");
-        if (video && video.srcObject) {
-          const track = video.srcObject.getVideoTracks()[0];
-          if (track && track.getCapabilities().focusMode) {
-            track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+  <script>
+    const startAR = async () => {
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+        container: document.querySelector("#ar-container"),
+        imageTargetSrc: "./assets/targets.mind",
+        filterMinCF: 0.005,
+        filterBeta: 0.005,
+        missTolerance: 8,
+        warmupTolerance: 2
+      });
+
+      const { renderer, scene, camera } = mindarThree;
+      const anchor = mindarThree.addAnchor(0);
+
+      const loader = new THREE.TextureLoader();
+      const group = new THREE.Group();
+
+      const imageWidth = 1.0;
+      const imageHeight = 1.0;
+      
+      // Load textures
+      const backgroundTexture = await new Promise(resolve => {
+        loader.load('./assets/background.png', resolve);
+      });
+      const foregroundTexture = loader.load('./assets/sat2farm.png');
+      
+      // Maintain background aspect ratio
+      const trackerWidth = 1.0; 
+      const trackerHeight = 1.0;
+      
+      // Background plane (anchored at bottom)
+      const bgGeometry = new THREE.PlaneGeometry(trackerWidth, trackerHeight);
+      const bgMaterial = new THREE.MeshBasicMaterial({
+        map: backgroundTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
+      // move up by half its height so bottom sits on Y=0 (bottom of tracker)
+      bgPlane.position.set(0, -0.25, 0);
+      
+      // Foreground plane (anchored at bottom)
+      const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
+      const fgMaterial = new THREE.MeshBasicMaterial({
+        map: foregroundTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
+      fgPlane.position.set(0,-0.25, 0.1); // same logic — bottom at Y=0
+      
+      // Add both to group
+      group.add(bgPlane);
+      group.add(fgPlane);
+      group.scale.set(0.001, 0.001, 0.001); // Start tiny
+      anchor.group.add(group);
+
+
+      // Smoothing vectors
+      const smoothedPosition = new THREE.Vector3();
+      const smoothedQuaternion = new THREE.Quaternion();
+
+      // Animate on detection
+      anchor.onTargetFound = () => {
+        setTimeout(() => {
+          const duration = 100;
+          const startTime = performance.now();
+          const animate = (now) => {
+            const elapsed = now - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            const scale = 0.001 + (1 - 0.001) * t;
+            group.scale.set(scale, scale, scale);
+            if (t < 1) requestAnimationFrame(animate);
+          };
+          requestAnimationFrame(animate);
+        }, 100);
+      };
+
+      // Reset on lost
+      anchor.onTargetLost = () => {
+        group.scale.set(0.001, 0.001, 0.001);
+      };
+
+      await mindarThree.start();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+
+      renderer.setAnimationLoop(() => {
+        if (anchor.group.visible) {
+          const dist = smoothedPosition.distanceTo(anchor.group.position);
+          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
+
+          if (dist > 0.0005 || angle > 0.001) {
+            smoothedPosition.lerp(anchor.group.position, 0.08);
+            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+            group.position.copy(smoothedPosition);
+            group.quaternion.copy(smoothedQuaternion);
           }
         }
+
+        renderer.render(scene, camera);
       });
 
-      // ✅ Adjust camera feed for portrait mode
-      window.addEventListener("resize", () => {
-        const scene = document.querySelector("a-scene");
-        if (scene && scene.renderer) {
-          scene.renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+      window.addEventListener('resize', () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
       });
-    </script>
-  </body>
+    };
+
+    startAR();
+  </script>
+</body>
 </html>
