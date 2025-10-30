@@ -1,226 +1,189 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Parallax Stable</title>
-
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
-
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      background: black;
-    }
-
-    #ar-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      z-index: 1;
-    }
-
-    canvas {
-      display: block;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-  </style>
-</head>
-<body>
-  <div id="ar-container"></div>
-
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-
-  <script>
-    const startAR = async () => {
-
-      // 🔍 Get the main (wide) back camera instead of ultra-wide
-      async function getMainBackCameraStream() {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(d => d.kind === "videoinput");
-
-        // Filter for rear/back cameras
-        const backCameras = videoDevices.filter(d =>
-          d.label.toLowerCase().includes("back") ||
-          d.label.toLowerCase().includes("rear")
-        );
-
-        // Prefer the one that includes "wide" or "main"
-        let selectedCamera = backCameras.find(d =>
-          d.label.toLowerCase().includes("wide") || d.label.toLowerCase().includes("main")
-        );
-
-        // Fallback: last back camera if "wide" not found
-        if (!selectedCamera && backCameras.length > 0) {
-          selectedCamera = backCameras[backCameras.length - 1];
-        }
-
-        // Fallback to default environment camera
-        if (!selectedCamera && videoDevices.length > 0) {
-          selectedCamera = videoDevices.find(d =>
-            d.label.toLowerCase().includes("environment")
-          ) || videoDevices[0];
-        }
-
-        const constraints = {
-          video: {
-            deviceId: selectedCamera ? { exact: selectedCamera.deviceId } : undefined,
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            focusMode: "continuous"
-          },
-          audio: false
-        };
-
-        return await navigator.mediaDevices.getUserMedia(constraints);
-      }
-
-      // 🎥 Get stream
-      let stream;
-      try {
-        stream = await getMainBackCameraStream();
-      } catch (err) {
-        console.warn("Camera selection failed, using fallback:", err);
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-          audio: false
-        });
-      }
-
-      // 🟢 Create custom video element for MindAR
-      const video = document.createElement("video");
-      video.setAttribute("playsinline", true);
-      video.setAttribute("autoplay", true);
-      video.setAttribute("muted", true);
-      video.srcObject = stream;
-      await video.play();
-      await new Promise(res => setTimeout(res, 500));
-
-      // 🧠 Initialize MindAR
-      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.querySelector("#ar-container"),
-        imageTargetSrc: "./assets/targets.mind",
-        filterMinCF: 0.005,
-        filterBeta: 0.005,
-        missTolerance: 8,
-        warmupTolerance: 2
-      });
-
-      // 🔧 Force MindAR to use our custom video stream
-      mindarThree.video = video;
-
-      const { renderer, scene, camera } = mindarThree;
-      const anchor = mindarThree.addAnchor(0);
-
-      // 🖼️ Load Textures
-      const loader = new THREE.TextureLoader();
-      const group = new THREE.Group();
-
-      const backgroundTexture = await new Promise(resolve => {
-        loader.load('./assets/background.png', resolve);
-      });
-      const foregroundTexture = loader.load('./assets/sat2farm.png');
-
-      // 🧩 Create Background Plane
-      const bgGeometry = new THREE.PlaneGeometry(1.0, 1.0);
-      const bgMaterial = new THREE.MeshBasicMaterial({
-        map: backgroundTexture,
-        transparent: true,
-        depthWrite: false
-      });
-      const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-      bgPlane.scale.set(1.8, 1.8, 1);
-      bgPlane.position.set(0, -0.25, 0.05);
-
-      // 🧩 Create Foreground Plane
-      const fgGeometry = new THREE.PlaneGeometry(1.0, 1.0);
-      const fgMaterial = new THREE.MeshBasicMaterial({
-        map: foregroundTexture,
-        transparent: true,
-        depthWrite: false
-      });
-      const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-      fgPlane.position.set(0, -0.25, 0.1);
-
-      group.add(bgPlane);
-      group.add(fgPlane);
-      group.scale.set(0.001, 0.001, 0.001);
-      anchor.group.add(group);
-
-      // 🧠 Smoothing vectors
-      const smoothedPosition = new THREE.Vector3();
-      const smoothedQuaternion = new THREE.Quaternion();
-
-      // 🎯 On target found animation
-      anchor.onTargetFound = () => {
-        setTimeout(() => {
-          const duration = 200;
-          const startTime = performance.now();
-          const animate = (now) => {
-            const elapsed = now - startTime;
-            const t = Math.min(elapsed / duration, 1);
-            const scale = 0.001 + (1 - 0.001) * t;
-            group.scale.set(scale, scale, scale);
-            if (t < 1) requestAnimationFrame(animate);
-          };
-          requestAnimationFrame(animate);
-        }, 100);
-      };
-
-      // 🕳️ On target lost
-      anchor.onTargetLost = () => {
-        group.scale.set(0.001, 0.001, 0.001);
-      };
-
-      // 🚀 Start AR
-      await mindarThree.start();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
-
-      // 🔧 Auto Focus and Tap Focus
-      const track = stream.getVideoTracks()[0];
-      const caps = track.getCapabilities();
-      if (caps.focusMode && caps.focusMode.includes("continuous")) {
-        await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
-      }
-
-      document.body.addEventListener("click", async () => {
-        if (caps.focusMode && caps.focusMode.includes("single-shot")) {
-          await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] }).catch(() => {});
-        }
-      });
-
-      // 🌀 Render loop
-      renderer.setAnimationLoop(() => {
-        if (anchor.group.visible) {
-          const dist = smoothedPosition.distanceTo(anchor.group.position);
-          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
-          if (dist > 0.0005 || angle > 0.001) {
-            smoothedPosition.lerp(anchor.group.position, 0.08);
-            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
-            group.position.copy(smoothedPosition);
-            group.quaternion.copy(smoothedQuaternion);
-          }
-        }
-        renderer.render(scene, camera);
-      });
-
-      window.addEventListener("resize", () => {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
-    };
-
-    startAR();
-  </script>
-</body>
+   <head>
+      <meta charset="UTF-8" />
+      <meta
+         name="viewport"
+         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+      />
+      <title>AR Parallax Stable</title>
+      <link
+         rel="stylesheet"
+         href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css"
+      />
+      <style>
+         html,
+         body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: black;
+         }
+         #ar-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            z-index: 1;
+         }
+         canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+         }
+      </style>
+   </head>
+   <body>
+      <div id="ar-container"></div>
+      <!-- Scripts -->
+      <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+      <script>
+         const startAR = async () => {
+            let stream;
+            try {
+               stream = await navigator.mediaDevices.getUserMedia({
+                  video: {
+                     facingMode: { exact: "environment" },
+                     width: { ideal: 1920 },
+                     height: { ideal: 1080 },
+                     focusMode: "continuous",
+                     exposureMode: "continuous",
+                     whiteBalanceMode: "continuous",
+                  },
+                  audio: false,
+               });
+            } catch (err) {
+               stream = await navigator.mediaDevices.getUserMedia({
+                  video: {
+                     facingMode: "environment",
+                     width: { ideal: 1280 },
+                     height: { ideal: 720 },
+                  },
+                  audio: false,
+               });
+            }
+            const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+               container: document.querySelector("#ar-container"),
+               imageTargetSrc: "./assets/targets.mind",
+               videoStream: stream,
+               filterMinCF: 0.005,
+               filterBeta: 0.005,
+               missTolerance: 8,
+               warmupTolerance: 2,
+            });
+            const { renderer, scene, camera } = mindarThree;
+            const anchor = mindarThree.addAnchor(0);
+            const loader = new THREE.TextureLoader();
+            const group = new THREE.Group();
+            const imageWidth = 1.0;
+            const imageHeight = 1.0;
+            const backgroundTexture = await new Promise((resolve) => {
+               loader.load("./assets/background.png", resolve);
+            });
+            const foregroundTexture = loader.load("./assets/sat2farm.png");
+            const trackerWidth = 1.0;
+            const trackerHeight = 1.0;
+            const bgGeometry = new THREE.PlaneGeometry(
+               trackerWidth,
+               trackerHeight,
+            );
+            const bgMaterial = new THREE.MeshBasicMaterial({
+               map: backgroundTexture,
+               transparent: true,
+               depthWrite: false,
+            });
+            const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
+            bgPlane.scale.set(1.8, 1.8, 1);
+            bgPlane.position.set(0, -0.25, 0.05);
+            const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
+            const fgMaterial = new THREE.MeshBasicMaterial({
+               map: foregroundTexture,
+               transparent: true,
+               depthWrite: false,
+            });
+            const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
+            fgPlane.position.set(0, -0.25, 0.1);
+            group.add(bgPlane);
+            group.add(fgPlane);
+            group.scale.set(0.001, 0.001, 0.001);
+            anchor.group.add(group);
+            const smoothedPosition = new THREE.Vector3();
+            const smoothedQuaternion = new THREE.Quaternion();
+            anchor.onTargetFound = () => {
+               setTimeout(() => {
+                  const duration = 100;
+                  const startTime = performance.now();
+                  const animate = (now) => {
+                     const elapsed = now - startTime;
+                     const t = Math.min(elapsed / duration, 1);
+                     const scale = 0.001 + (1 - 0.001) * t;
+                     group.scale.set(scale, scale, scale);
+                     if (t < 1) requestAnimationFrame(animate);
+                  };
+                  requestAnimationFrame(animate);
+               }, 100);
+            };
+            anchor.onTargetLost = () => {
+               group.scale.set(0.001, 0.001, 0.001);
+            };
+            await mindarThree.start();
+            const video = document.querySelector("video");
+            if (video && video.srcObject) {
+               const track = video.srcObject.getVideoTracks()[0];
+               const caps = track.getCapabilities();
+               if (caps.focusMode && caps.focusMode.includes("continuous")) {
+                  await track
+                     .applyConstraints({
+                        advanced: [{ focusMode: "continuous" }],
+                     })
+                     .catch(() => {});
+               }
+            }
+            ocument.body.addEventListener("click", async () => {
+               if (video && video.srcObject) {
+                  const track = video.srcObject.getVideoTracks()[0];
+                  const caps = track.getCapabilities();
+                  if (
+                     caps.focusMode &&
+                     caps.focusMode.includes("single-shot")
+                  ) {
+                     await track
+                        .applyConstraints({
+                           advanced: [{ focusMode: "single-shot" }],
+                        })
+                        .catch(() => {});
+                  }
+               }
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setAnimationLoop(() => {
+               if (anchor.group.visible) {
+                  const dist = smoothedPosition.distanceTo(
+                     anchor.group.position,
+                  );
+                  const angle = smoothedQuaternion.angleTo(
+                     anchor.group.quaternion,
+                  );
+                  if (dist > 0.0005 || angle > 0.001) {
+                     smoothedPosition.lerp(anchor.group.position, 0.08);
+                     smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+                     group.position.copy(smoothedPosition);
+                     group.quaternion.copy(smoothedQuaternion);
+                  }
+               }
+               renderer.render(scene, camera);
+            });
+            window.addEventListener("resize", () => {
+               scene.renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+         };
+         startAR();
+      </script>
+   </body>
 </html>
