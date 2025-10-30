@@ -17,6 +17,23 @@
   </head>
 
   <body>
+    <script>
+      window.addEventListener("load", async () => {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+            await navigator.mediaDevices.getUserMedia({ video: true });
+            console.log("✅ Camera permission granted");
+          } catch (err) {
+            document.body.innerHTML =
+              '<div class="permission-msg">🚫 Please allow camera permission in browser settings to view AR invitation.</div>';
+          }
+        } else {
+          document.body.innerHTML =
+            '<div class="permission-msg">❌ Camera not supported on this device.</div>';
+        }
+      });
+    </script>
+    
     <a-scene
       mindar-image="imageTargetSrc: ./assets/targets.mind; filterMinCF:0.001; filterBeta:0.01;"
       color-space="sRGB"
