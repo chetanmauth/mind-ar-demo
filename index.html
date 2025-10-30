@@ -44,18 +44,34 @@
   <script>
     const startAR = async () => {
       
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          focusMode: 'continuous' // request autofocus if supported
-        }
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { exact: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            focusMode: "continuous",
+            exposureMode: "continuous",
+            whiteBalanceMode: "continuous"
+          },
+          audio: false
+        });
+      } catch (err) {
+        // Fallback if strict constraints fail
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        });
+      }
+
+      // ✅ Initialize MindAR with custom camera stream
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./assets/targets.mind",
+        videoStream: stream,
         filterMinCF: 0.005,
         filterBeta: 0.005,
-        videoStream: stream,
         missTolerance: 8,
         warmupTolerance: 2
       });
@@ -135,14 +151,28 @@
 
       
       await mindarThree.start();
+
+       // ✅ Try enabling autofocus on start
       const video = document.querySelector("video");
       if (video && video.srcObject) {
         const track = video.srcObject.getVideoTracks()[0];
-        if (track && track.getCapabilities().focusMode) {
-          track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+        const caps = track.getCapabilities();
+        if (caps.focusMode && caps.focusMode.includes("continuous")) {
+          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(()=>{});
         }
       }
-      
+
+      // ✅ Tap to refocus
+      document.body.addEventListener("click", async () => {
+        if (video && video.srcObject) {
+          const track = video.srcObject.getVideoTracks()[0];
+          const caps = track.getCapabilities();
+          if (caps.focusMode && caps.focusMode.includes("single-shot")) {
+            await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] }).catch(()=>{});
+          }
+        }
+      });
+
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
@@ -162,24 +192,8 @@
         renderer.render(scene, camera);
       });
 
-      document.body.addEventListener("click", async () => {
-        const video = document.querySelector("video");
-        if (video && video.srcObject) {
-          const track = video.srcObject.getVideoTracks()[0];
-          const capabilities = track.getCapabilities();
-          if (capabilities.focusMode && capabilities.focusMode.includes("continuous")) {
-            await track.applyConstraints({ advanced: [{ focusMode: "manual" }] });
-            await new Promise(r => setTimeout(r, 200));
-            await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-          }
-        }
-      });
-
       window.addEventListener("resize", () => {
-        const scene = document.querySelector("a-scene");
-        if (scene && scene.renderer) {
           scene.renderer.setSize(window.innerWidth, window.innerHeight);
-        }
       });
     };
 
