@@ -185,8 +185,9 @@
       window.addEventListener("resize", () => {
           scene.renderer.setSize(window.innerWidth, window.innerHeight);
       });
+    };
 
-      // 🔍 Get the main (wide) back camera instead of ultra-wide
+    // 🔍 Get the main (wide) back camera instead of ultra-wide
       async function getMainBackCameraStream() {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(d => d.kind === "videoinput");
@@ -226,8 +227,6 @@
       
         return await navigator.mediaDevices.getUserMedia(constraints);
       }
-
-    };
 
     startAR();
 
