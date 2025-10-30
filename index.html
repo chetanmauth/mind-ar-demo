@@ -23,7 +23,6 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      z-index: 1;
     }
 
     canvas {
@@ -37,25 +36,23 @@
 <body>
   <div id="ar-container"></div>
 
-  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
   <script>
-    const startAR = async () => {
-      
+    async function startAR() {
       let stream;
+
       try {
         stream = await getMainBackCameraStream();
       } catch (err) {
-        console.error("Camera selection failed, using fallback:", err);
+        console.warn("Camera selection failed, using fallback:", err);
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "environment" },
           audio: false
         });
       }
 
-      // ✅ Initialize MindAR with custom camera stream
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./assets/targets.mind",
@@ -72,93 +69,67 @@
       const loader = new THREE.TextureLoader();
       const group = new THREE.Group();
 
-      const imageWidth = 1.0;
-      const imageHeight = 1.0;
-      
-      // Load textures
-      const backgroundTexture = await new Promise(resolve => {
-        loader.load('./assets/background.png', resolve);
-      });
-      const foregroundTexture = loader.load('./assets/sat2farm.png');
-      
-      // Maintain background aspect ratio
-      const trackerWidth = 1.0; 
-      const trackerHeight = 1.0;
-      
-      // Background plane (anchored at bottom)
-      const bgGeometry = new THREE.PlaneGeometry(trackerWidth, trackerHeight);
-      const bgMaterial = new THREE.MeshBasicMaterial({
-        map: backgroundTexture,
-        transparent: true,
-        depthWrite: false
-      });
-      const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-      // move up by half its height so bottom sits on Y=0 (bottom of tracker)
+      // Background and Foreground
+      const bgTexture = await new Promise(res => loader.load("./assets/background.png", res));
+      const fgTexture = await new Promise(res => loader.load("./assets/sat2farm.png", res));
+
+      const bgPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.0, 1.0),
+        new THREE.MeshBasicMaterial({ map: bgTexture, transparent: true })
+      );
       bgPlane.scale.set(1.8, 1.8, 1);
       bgPlane.position.set(0, -0.25, 0.05);
-      
-      // Foreground plane (anchored at bottom)
-      const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
-      const fgMaterial = new THREE.MeshBasicMaterial({
-        map: foregroundTexture,
-        transparent: true,
-        depthWrite: false
-      });
-      const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-      fgPlane.position.set(0,-0.25, 0.1); // same logic — bottom at Y=0
-      
-      // Add both to group
+
+      const fgPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.0, 1.0),
+        new THREE.MeshBasicMaterial({ map: fgTexture, transparent: true })
+      );
+      fgPlane.position.set(0, -0.25, 0.1);
+
       group.add(bgPlane);
       group.add(fgPlane);
-      group.scale.set(0.001, 0.001, 0.001); // Start tiny
+      group.scale.set(0.001, 0.001, 0.001);
       anchor.group.add(group);
 
-
-      // Smoothing vectors
+      // Smooth motion
       const smoothedPosition = new THREE.Vector3();
       const smoothedQuaternion = new THREE.Quaternion();
 
-      // Animate on detection
       anchor.onTargetFound = () => {
-        setTimeout(() => {
-          const duration = 100;
-          const startTime = performance.now();
-          const animate = (now) => {
-            const elapsed = now - startTime;
-            const t = Math.min(elapsed / duration, 1);
-            const scale = 0.001 + (1 - 0.001) * t;
-            group.scale.set(scale, scale, scale);
-            if (t < 1) requestAnimationFrame(animate);
-          };
-          requestAnimationFrame(animate);
-        }, 100);
+        const start = performance.now();
+        const duration = 300;
+        const animate = (t) => {
+          const elapsed = t - start;
+          const progress = Math.min(elapsed / duration, 1);
+          const scale = 0.001 + (1 - 0.001) * progress;
+          group.scale.set(scale, scale, scale);
+          if (progress < 1) requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
       };
 
-      // Reset on lost
       anchor.onTargetLost = () => {
         group.scale.set(0.001, 0.001, 0.001);
       };
 
-      
       await mindarThree.start();
 
-       // ✅ Try enabling autofocus on start
+      // Autofocus
       const video = document.querySelector("video");
       if (video && video.srcObject) {
         const track = video.srcObject.getVideoTracks()[0];
-        const caps = track.getCapabilities();
-        if (caps.focusMode && caps.focusMode.includes("continuous")) {
-          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(()=>{});
+        const caps = track.getCapabilities?.();
+        if (caps?.focusMode?.includes("continuous")) {
+          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
         }
       }
 
-      // ✅ Tap to refocus
       document.body.addEventListener("click", async () => {
         if (video && video.srcObject) {
           const track = video.srcObject.getVideoTracks()[0];
-          const caps = track.getCapabilities();
-          if (caps.focusMode && caps.focusMode.includes("single-shot")) {
-            await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] }).catch(()=>{});
+          const caps = track.getCapabilities?.();
+          if (caps?.focusMode?.includes("single-shot")) {
+            await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] }).catch(() => {});
           }
         }
       });
@@ -168,69 +139,42 @@
 
       renderer.setAnimationLoop(() => {
         if (anchor.group.visible) {
-          const dist = smoothedPosition.distanceTo(anchor.group.position);
-          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
-
-          if (dist > 0.0005 || angle > 0.001) {
-            smoothedPosition.lerp(anchor.group.position, 0.08);
-            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
-            group.position.copy(smoothedPosition);
-            group.quaternion.copy(smoothedQuaternion);
-          }
+          smoothedPosition.lerp(anchor.group.position, 0.08);
+          smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
+          group.position.copy(smoothedPosition);
+          group.quaternion.copy(smoothedQuaternion);
         }
-
         renderer.render(scene, camera);
       });
 
       window.addEventListener("resize", () => {
-          scene.renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setSize(window.innerWidth, window.innerHeight);
       });
-    };
+    }
 
-    // 🔍 Get the main (wide) back camera instead of ultra-wide
-      async function getMainBackCameraStream() {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(d => d.kind === "videoinput");
-      
-        // Filter for rear/back cameras
-        const backCameras = videoDevices.filter(d =>
-          d.label.toLowerCase().includes("back") ||
-          d.label.toLowerCase().includes("rear")
-        );
-      
-        // Prefer the one that includes "wide" or "main"
-        let selectedCamera = backCameras.find(d =>
-          d.label.toLowerCase().includes("wide") || d.label.toLowerCase().includes("main")
-        );
-      
-        // Fallback: last back camera if "wide" not found
-        if (!selectedCamera && backCameras.length > 0) {
-          selectedCamera = backCameras[backCameras.length - 1];
-        }
-      
-        // Fallback to default environment camera
-        if (!selectedCamera && videoDevices.length > 0) {
-          selectedCamera = videoDevices.find(d =>
-            d.label.toLowerCase().includes("environment")
-          ) || videoDevices[0];
-        }
-      
-        const constraints = {
-          video: {
-            deviceId: selectedCamera ? { exact: selectedCamera.deviceId } : undefined,
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            focusMode: "continuous"
-          },
-          audio: false
-        };
-      
-        return await navigator.mediaDevices.getUserMedia(constraints);
-      }
+    async function getMainBackCameraStream() {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter(d => d.kind === "videoinput");
+
+      // Try to find main back camera
+      let selected = cams.find(d => /main|wide|back/i.test(d.label)) || 
+                     cams.find(d => /environment/i.test(d.label)) ||
+                     cams[0];
+
+      const constraints = {
+        video: {
+          deviceId: selected ? { exact: selected.deviceId } : undefined,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          focusMode: "continuous"
+        },
+        audio: false
+      };
+
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    }
 
     startAR();
-
-    
   </script>
 </body>
 </html>
