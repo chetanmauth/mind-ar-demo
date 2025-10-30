@@ -1,72 +1,136 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Smooth AR Invitation | MindAR</title>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR Invitation | MindAR</title>
 
-    <!-- A-Frame and MindAR -->
-    <script src="https://cdn.jsdelivr.net/npm/aframe@1.3.0/dist/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.0/dist/mindar-image-aframe.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/aframe-animation-component@6.0.0/dist/aframe-animation-component.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
 
-    <style>
-      html, body {
-        margin: 0;
-        overflow: hidden;
-        height: 100%;
-        background: #000;
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: black;
+    }
+    #ar-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .msg {
+      position: absolute;
+      top: 40%;
+      width: 100%;
+      text-align: center;
+      color: white;
+      font-size: 18px;
+      z-index: 10;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="ar-container"></div>
+  <div class="msg" id="permissionMsg">🚫 Please allow camera access in your browser settings and reload.</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+
+  <script>
+    const startAR = async () => {
+      // Check camera permission first
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+      } catch (e) {
+        document.getElementById('permissionMsg').style.display = 'block';
+        return;
       }
-      .permission-msg {
-        color: white;
-        font-size: 18px;
-        text-align: center;
-        margin-top: 40vh;
-      }
-    </style>
-  </head>
 
-  <body>
-    <a-scene
-      mindar-image="imageTargetSrc: ./assets/targets.mind; filterMinCF:0.001; filterBeta:0.01;"
-      color-space="sRGB"
-      renderer="colorManagement: true, physicallyCorrectLights"
-      embedded
-      vr-mode-ui="enabled: false"
-      device-orientation-permission-ui="enabled: false"
-      id="scene"
-    >
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-      <a-entity mindar-image-target="targetIndex: 0" id="target">
-        <a-image
-          id="invitationImage"
-          src="./assets/background.png"
-          width="1.5"
-          height="1"
-          position="0 0 0"
-          opacity="0"
-          scale="0.8 0.8 0.8"
-          animation__fadein="property: opacity; to: 1; dur: 1000; easing: easeInOutQuad; startEvents: targetFound"
-          animation__scaleup="property: scale; to: 1 1 1; dur: 1000; easing: easeOutElastic; startEvents: targetFound"
-          animation__fadeout="property: opacity; to: 0; dur: 300; startEvents: targetLost"
-        ></a-image>
-      </a-entity>
-    </a-scene>
-
-    <script>
-      const scene = document.querySelector("#scene");
-
-      scene.addEventListener("loaded", async () => {
-        console.log("🟢 Scene loaded, requesting camera...");
-        try {
-          await navigator.mediaDevices.getUserMedia({ video: true });
-          console.log("✅ Camera permission granted");
-        } catch (err) {
-          console.error("🚫 Camera permission denied or unavailable", err);
-          document.body.innerHTML =
-            '<div class="permission-msg">🚫 Please allow camera permission in your browser settings.<br><br>Reload after granting access.</div>';
-        }
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+        container: document.querySelector("#ar-container"),
+        imageTargetSrc: "./assets/targets.mind",
+        filterMinCF: 0.005,
+        filterBeta: 0.005,
+        missTolerance: 8,
+        warmupTolerance: 2
       });
-    </script>
-  </body>
+
+      const { renderer, scene, camera } = mindarThree;
+      const anchor = mindarThree.addAnchor(0);
+
+      // Load textures
+      const loader = new THREE.TextureLoader();
+      const bgTexture = await new Promise(resolve => loader.load('./assets/background.png', resolve));
+
+      // Plane setup (anchored at bottom)
+      const width = 1.0;
+      const height = 1.0;
+
+      const geometry = new THREE.PlaneGeometry(width, height);
+      const material = new THREE.MeshBasicMaterial({
+        map: bgTexture,
+        transparent: true,
+        depthWrite: false
+      });
+
+      const plane = new THREE.Mesh(geometry, material);
+      plane.position.set(0, -height / 2, 0); // bottom anchored
+      plane.scale.set(1, 1, 1);
+
+      const group = new THREE.Group();
+      group.add(plane);
+      group.scale.set(0.001, 0.001, 0.001); // start tiny
+      anchor.group.add(group);
+
+      // Smooth tracking variables
+      const smoothedPosition = new THREE.Vector3();
+      const smoothedQuaternion = new THREE.Quaternion();
+
+      // Appear animation
+      anchor.onTargetFound = () => {
+        const start = performance.now();
+        const animate = (now) => {
+          const progress = Math.min((now - start) / 800, 1);
+          const scale = 0.001 + progress * (1 - 0.001);
+          group.scale.set(scale, scale, scale);
+          if (progress < 1) requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
+      };
+
+      // Hide on lost
+      anchor.onTargetLost = () => {
+        group.scale.set(0.001, 0.001, 0.001);
+      };
+
+      await mindarThree.start();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+
+      renderer.setAnimationLoop(() => {
+        if (anchor.group.visible) {
+          // Smooth position and rotation
+          smoothedPosition.lerp(anchor.group.position, 0.1);
+          smoothedQuaternion.slerp(anchor.group.quaternion, 0.1);
+          group.position.copy(smoothedPosition);
+          group.quaternion.copy(smoothedQuaternion);
+        }
+        renderer.render(scene, camera);
+      });
+
+      window.addEventListener('resize', () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    };
+
+    startAR();
+  </script>
+</body>
 </html>
