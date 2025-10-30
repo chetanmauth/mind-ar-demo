@@ -111,15 +111,28 @@
             videoStream = newStream; // Update global stream reference
             
             // 3. Re-link and Restart MindAR with the new stream
-            // NOTE: We MUST re-start MindAR with the new stream to reset the context
+            
+            // IMPORTANT: Get the video element created by MindAR before starting it again
+            const videoElement = document.querySelector("video");
+
+            if (videoElement) {
+                // Force the video element to stop/reset
+                videoElement.pause();
+                videoElement.srcObject = null; 
+                
+                // Assign the new stream directly to the video element's source
+                videoElement.srcObject = newStream;
+            }
+            
+            // Restart the AR engine using the new stream
+            // MindAR's start() will try to play the video element
             await mindarThree.switchCamera(newStream); 
             await mindarThree.start(); 
             
             // 4. Force video play (safety measure for some browsers)
-            const videoElement = document.querySelector("video");
+            // Even after mindarThree.start(), we force play() again on the existing element
             if (videoElement) {
-                 videoElement.srcObject = newStream;
-                 await videoElement.play().catch(e => console.error("Video play failed:", e));
+                 await videoElement.play().catch(e => console.error("Video play failed on restart:", e));
             }
             
             // 5. Re-apply continuous autofocus
