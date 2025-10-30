@@ -43,11 +43,19 @@
 
   <script>
     const startAR = async () => {
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          focusMode: 'continuous' // request autofocus if supported
+        }
+      });
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./assets/targets.mind",
         filterMinCF: 0.005,
         filterBeta: 0.005,
+        videoStream: stream
         missTolerance: 8,
         warmupTolerance: 2
       });
@@ -125,6 +133,7 @@
         group.scale.set(0.001, 0.001, 0.001);
       };
 
+      
       await mindarThree.start();
       const video = document.querySelector("video");
       if (video && video.srcObject) {
@@ -153,12 +162,15 @@
         renderer.render(scene, camera);
       });
 
-      document.body.addEventListener("click", () => {
+      document.body.addEventListener("click", async () => {
         const video = document.querySelector("video");
         if (video && video.srcObject) {
           const track = video.srcObject.getVideoTracks()[0];
-          if (track && track.getCapabilities().focusMode) {
-            track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+          const capabilities = track.getCapabilities();
+          if (capabilities.focusMode && capabilities.focusMode.includes("continuous")) {
+            await track.applyConstraints({ advanced: [{ focusMode: "manual" }] });
+            await new Promise(r => setTimeout(r, 200));
+            await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
           }
         }
       });
