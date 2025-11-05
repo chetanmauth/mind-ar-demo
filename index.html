@@ -3,42 +3,23 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-  <title>AR Parallax Stable - MindARThree + Countdown (debug)</title>
+  <title>AR Parallax - Countdown On Background Only</title>
 
   <style>
     html,body { margin:0; padding:0; height:100%; background:black; overflow:hidden; }
     #ar-container { position:absolute; inset:0; width:100vw; height:100vh; z-index:1; }
     canvas { display:block; }
-    /* small overlay to verify the countdown logic is running even if AR fails */
-    #debug-timer {
-      position: absolute;
-      top: 8%;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 8px 12px;
-      background: rgba(0,0,0,0.5);
-      color: #FFD700;
-      font-family: sans-serif;
-      font-weight:700;
-      z-index: 9999;
-      border-radius: 6px;
-      pointer-events: none;
-    }
   </style>
 </head>
 <body>
   <div id="ar-container"></div>
-  <div id="debug-timer">Loading...</div>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
   <script>
     // === CONFIG: Set your event date (ISO) ===
-    const eventDate = new Date("2025-12-25T18:00:00").getTime(); // adjust as needed
-
-    // debug overlay element
-    const debugTimerEl = document.getElementById('debug-timer');
+    const eventDate = new Date("2026-02-11T18:00:00+05:30").getTime(); // adjust as needed
 
     async function startAR() {
       let stream;
@@ -47,15 +28,11 @@
           video: {
             facingMode: "environment",
             width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            focusMode: "continuous",
-            exposureMode: "continuous",
-            whiteBalanceMode: "continuous"
+            height: { ideal: 1080 }
           },
           audio: false
         });
       } catch (err) {
-        console.warn("Strict camera constraints failed. Falling back to softer constraints.", err);
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false
@@ -76,7 +53,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // --- LOAD TEXTURES (background & foreground) ---
+      // --- LOAD TEXTURES ---
       const loader = new THREE.TextureLoader();
       const backgroundTexture = await new Promise(resolve => loader.load('./assets/background.png', resolve));
       const foregroundTexture = await new Promise(resolve => loader.load('./assets/sat2farm.png', resolve));
@@ -89,7 +66,7 @@
       const bgMaterial = new THREE.MeshBasicMaterial({
         map: backgroundTexture,
         transparent: true,
-        depthWrite: false
+        depthWrite: false // don't write depth for these overlays
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
       bgPlane.scale.set(1.8, 1.8, 1);
@@ -105,75 +82,71 @@
       const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
       fgPlane.position.set(0, -0.25, 0.10);
 
-      group.add(bgPlane);
+      // Add foreground to group (bg will host the countdown so add fg after attaching text to bg)
       group.add(fgPlane);
 
-      // initial tiny scale for zoom-in animation (will animate when detected)
+      // initial tiny scale for zoom-in animation
       group.scale.set(0.001, 0.001, 0.001);
 
-      // --- COUNTDOWN: Create canvas texture for dynamic text ---
+      // --- COUNTDOWN: Canvas texture ---
       const textCanvas = document.createElement('canvas');
-      // higher resolution for crisper text
       const cw = 1024, ch = 512;
       textCanvas.width = cw;
       textCanvas.height = ch;
       const ctx = textCanvas.getContext('2d');
 
       function drawCountdownToCanvas(text) {
-        // clear with full transparency
         ctx.clearRect(0, 0, cw, ch);
-
-        // shadow/outline for better legibility
         ctx.font = 'bold 96px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-
-        // stroke (outline)
         ctx.lineWidth = 12;
         ctx.strokeStyle = 'rgba(0,0,0,0.9)';
         ctx.strokeText(text, cw/2, ch/2);
-
-        // fill
         ctx.fillStyle = '#FFD700';
         ctx.fillText(text, cw/2, ch/2);
       }
 
-      // initial draw
       drawCountdownToCanvas('Loading...');
 
-      // Canvas texture and mesh
       const textTexture = new THREE.CanvasTexture(textCanvas);
       textTexture.minFilter = THREE.LinearFilter;
       textTexture.generateMipmaps = false;
-      textTexture.needsUpdate = true; // ensure initial update
+      textTexture.needsUpdate = true;
 
-      // plane using the canvas texture
-      const textPlaneGeometry = new THREE.PlaneGeometry(0.9, 0.4); // size on marker; tweak as needed
+      // create the text plane (we'll attach this to the background plane)
+      const textPlaneGeometry = new THREE.PlaneGeometry(0.9, 0.4);
       const textPlaneMaterial = new THREE.MeshBasicMaterial({
         map: textTexture,
         transparent: true,
         depthWrite: false,
-        depthTest: false // important: draw on top regardless of depth test
+        depthTest: true // enable depth test so text gets occluded by foreground if in front
       });
       const textPlane = new THREE.Mesh(textPlaneGeometry, textPlaneMaterial);
-      textPlane.position.set(0, 0.18, 0.08); // put above bg (0.05) and below fg (0.10) — adjust y/z as needed
-      textPlane.renderOrder = 999; // force draw order
+      // place slightly in front of the background (but behind the fg)
+      textPlane.position.set(0, 0.18, 0.005); // relative to bgPlane; we'll attach to bgPlane so z is small here
       textPlane.material.side = THREE.DoubleSide;
 
-      group.add(textPlane);
+      // Attach textPlane as a child of bgPlane (so it sticks to the background exactly)
+      bgPlane.add(textPlane);
 
-      // Add group to anchor
+      // Add bgPlane to group (after text is attached) and add group to anchor
+      group.add(bgPlane);
       anchor.group.add(group);
 
-      // --- SMOOTHING & ZOOM IN animation ---
+      // Because we added fgPlane before bgPlane, adjust draw order to ensure depth test works:
+      // (not strictly necessary but explicitly set)
+      bgPlane.renderOrder = 0;
+      textPlane.renderOrder = 1;
+      fgPlane.renderOrder = 2;
+
+      // --- SMOOTHING & ANIMATION ---
       const smoothedPosition = new THREE.Vector3();
       const smoothedQuaternion = new THREE.Quaternion();
 
       anchor.onTargetFound = () => {
-        console.log('anchor found!');
-        // quick zoom-in animation
         setTimeout(() => {
-          const duration = 180; // ms
+          const duration = 180;
           const startTime = performance.now();
           const animate = (now) => {
             const t = Math.min((now - startTime) / duration, 1);
@@ -186,35 +159,12 @@
       };
 
       anchor.onTargetLost = () => {
-        console.log('anchor lost!');
         group.scale.set(0.001, 0.001, 0.001);
       };
 
-      // Start MindAR
+      // --- START & RENDER ---
       await mindarThree.start();
 
-      // try enabling autofocus
-      const video = document.querySelector('video');
-      if (video && video.srcObject) {
-        const track = video.srcObject.getVideoTracks()[0];
-        const caps = track.getCapabilities ? track.getCapabilities() : {};
-        if (caps.focusMode && caps.focusMode.includes('continuous')) {
-          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(()=>{});
-        }
-      }
-
-      // tap to single-shot focus
-      document.body.addEventListener('click', async () => {
-        if (video && video.srcObject) {
-          const track = video.srcObject.getVideoTracks()[0];
-          const caps = track.getCapabilities ? track.getCapabilities() : {};
-          if (caps.focusMode && caps.focusMode.includes('single-shot')) {
-            await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] }).catch(()=>{});
-          }
-        }
-      });
-
-      // --- rendering loop ---
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio || 1);
 
@@ -222,7 +172,6 @@
         if (anchor.group.visible) {
           const dist = smoothedPosition.distanceTo(anchor.group.position);
           const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
-
           if (dist > 0.0005 || angle > 0.001) {
             smoothedPosition.lerp(anchor.group.position, 0.08);
             smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
@@ -237,38 +186,26 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
 
-      // --- countdown update: update canvas every second ---
-      function formatCountdown(distance) {
+      // --- COUNTDOWN UPDATE ---
+      function tickCountdown() {
+        const now = Date.now();
+        const distance = eventDate - now;
+        if (distance <= 0) {
+          drawCountdownToCanvas('🎉 Event Started!');
+          textTexture.needsUpdate = true;
+          return;
+        }
         const days = Math.floor(distance / (1000 * 60 * 60 * 24));
         const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-      }
-
-      function tickCountdown() {
-        const now = Date.now();
-        const distance = eventDate - now;
-
-        if (distance <= 0) {
-          drawCountdownToCanvas('🎉 Event Started!');
-          textTexture.needsUpdate = true;
-          debugTimerEl.textContent = '🎉 Event Started!';
-          return;
-        }
-
-        const text = formatCountdown(distance);
-        drawCountdownToCanvas(text);
+        const countdownText = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+        drawCountdownToCanvas(countdownText);
         textTexture.needsUpdate = true;
-        debugTimerEl.textContent = text;
       }
 
-      // kick it off
       tickCountdown();
-      const intervalId = setInterval(tickCountdown, 1000);
-
-      // optional: stop updating canvas while lost to save CPU (uncomment if desired)
-      // anchor.onTargetLost = () => { clearInterval(intervalId); ... }
+      setInterval(tickCountdown, 1000);
     }
 
     // start
