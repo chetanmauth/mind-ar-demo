@@ -122,7 +122,7 @@
       });
       const textPlane = new THREE.Mesh(textPlaneGeometry, textPlaneMaterial);
       // place slightly in front of the background (but behind the fg)
-      const bgHalfHeight = ((bgPlane.scale.y) / 2)-0.08; // 1.0 = geometry height
+      const bgHalfHeight = -0.4; // 1.0 = geometry height
       textPlane.position.set(0, bgHalfHeight , 0.005); // relative to bgPlane; we'll attach to bgPlane so z is small here
       textPlane.material.side = THREE.DoubleSide;
 
