@@ -1,40 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Parallax Stable</title>
-
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <title>AR Parallax Stable - MindARThree + Countdown</title>
 
   <style>
-    /* Basic setup to ensure full screen coverage */
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      background: black;
-    }
-
-    /* Container for the AR canvas and video feed */
-    #ar-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      z-index: 1;
-    }
-
-    /* Standard canvas styling, though MindAR/Three.js manages it */
-    canvas {
-      display: block;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
+    html,body { margin:0; padding:0; height:100%; background:black; overflow:hidden; }
+    #ar-container { position:absolute; inset:0; width:100vw; height:100vh; z-index:1; }
+    canvas { display:block; }
   </style>
 </head>
 <body>
@@ -42,40 +16,20 @@
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-  <a-scene
-      mindar-image="imageTargetSrc: ./targets.mind;"
-      color-space="sRGB"
-      renderer="colorManagement: true, physicallyCorrectLights"
-      vr-mode-ui="enabled: false"
-      device-orientation-permission-ui="enabled: false">
-    
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-      <!-- 👇 Countdown text attached to marker -->
-      <a-entity mindar-image-target="targetIndex: 0">
-        <a-text
-          id="countdownText"
-          value="Loading..."
-          color="yellow"
-          align="center"
-          position="0 0.5 0"
-          width="2"
-        ></a-text>
-      </a-entity>
-    </a-scene>
-  
   <script>
-    const startAR = async () => {
+    // === CONFIG: Set your event date (ISO) ===
+    const eventDate = new Date("2025-12-25T18:00:00").getTime(); // adjust as needed
+
+    async function startAR() {
       let stream;
-      
-      // --- 1. Camera Stream Acquisition (Force Environment Camera) ---
       try {
-        // Attempt to get a high-resolution stream with strict, advanced constraints
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: "environment", // Forces the back camera
+            facingMode: "environment",
             width: { ideal: 1920 },
             height: { ideal: 1080 },
+            // advanced constraints may be ignored by many browsers/devices; keep them as hints
             focusMode: "continuous",
             exposureMode: "continuous",
             whiteBalanceMode: "continuous"
@@ -83,146 +37,171 @@
           audio: false
         });
       } catch (err) {
-        // Fallback: If strict constraints fail (e.g., advanced modes unsupported), use softer constraints
-        console.warn("Strict camera constraints failed. Falling back to general environment mode.");
+        console.warn("Strict camera constraints failed. Falling back to softer constraints.", err);
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false
         });
       }
 
-      // --- 2. Initialize MindAR Engine ---
+      // Initialize MindAR (Three)
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
-        imageTargetSrc: "./assets/targets.mind", // Path to your target compilation file
-        videoStream: stream, // Pass the acquired stream to MindAR
-        // Tracking filters for stability (adjust based on environment)
+        imageTargetSrc: "./assets/targets.mind",
+        videoStream: stream,
         filterMinCF: 0.005,
         filterBeta: 0.005,
         missTolerance: 8,
         warmupTolerance: 2
       });
 
-      // Destructure core Three.js components from MindAR
       const { renderer, scene, camera } = mindarThree;
-      const anchor = mindarThree.addAnchor(0); // Anchor for the first target in targets.mind
+      const anchor = mindarThree.addAnchor(0);
 
-      // --- 3. Scene Setup (3D Content) ---
+      // --- LOAD TEXTURES (background & foreground) ---
       const loader = new THREE.TextureLoader();
+      const backgroundTexture = await new Promise(resolve => loader.load('./assets/background.png', resolve));
+      const foregroundTexture = await new Promise(resolve => loader.load('./assets/sat2farm.png', resolve));
+
+      // Group to hold everything anchored to the marker
       const group = new THREE.Group();
 
-      const imageWidth = 1.0;
-      const imageHeight = 1.0;
-      
-      // Load textures asynchronously
-      const backgroundTexture = await new Promise(resolve => {
-        loader.load('./assets/background.png', resolve);
-      });
-      const foregroundTexture = loader.load('./assets/sat2farm.png');
-      
-      const trackerWidth = 1.0; 
-      const trackerHeight = 1.0;
-      
-      // Background Plane (placed further back in Z-axis)
-      const bgGeometry = new THREE.PlaneGeometry(trackerWidth, trackerHeight);
+      // background plane
+      const bgGeometry = new THREE.PlaneGeometry(1.0, 1.0);
       const bgMaterial = new THREE.MeshBasicMaterial({
         map: backgroundTexture,
         transparent: true,
-        depthWrite: false // Helps with rendering order against the camera feed
+        depthWrite: false
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
       bgPlane.scale.set(1.8, 1.8, 1);
-      // Position Z=0.05 (slightly behind the foreground)
-      bgPlane.position.set(0, -0.25, 0.05); 
-      
-      // Foreground Plane (placed closer in Z-axis)
-      const fgGeometry = new THREE.PlaneGeometry(imageWidth, imageHeight);
+      bgPlane.position.set(0, -0.25, 0.05);
+
+      // foreground plane
+      const fgGeometry = new THREE.PlaneGeometry(1.0, 1.0);
       const fgMaterial = new THREE.MeshBasicMaterial({
         map: foregroundTexture,
         transparent: true,
         depthWrite: false
       });
       const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-      // Position Z=0.1 (closer to the camera/user than the background)
-      fgPlane.position.set(0,-0.25, 0.1); 
-      
-      // Add both planes to a single group for easy transformation
+      fgPlane.position.set(0, -0.25, 0.1);
+
       group.add(bgPlane);
       group.add(fgPlane);
-      group.scale.set(0.001, 0.001, 0.001); // Initial tiny scale for the zoom-in effect
-      anchor.group.add(group); // Add the content group to the MindAR anchor
 
+      // initial tiny scale for zoom-in animation
+      group.scale.set(0.001, 0.001, 0.001);
 
-      // --- 4. Smoothing and Animation Setup ---
-      
-      // Vectors for smoothing the object's movement (reduces jitter)
+      // --- COUNTDOWN: Create canvas texture for dynamic text ---
+      const textCanvas = document.createElement('canvas');
+      const cw = 512, ch = 256; // resolution of canvas texture
+      textCanvas.width = cw;
+      textCanvas.height = ch;
+      const ctx = textCanvas.getContext('2d');
+
+      // style function to draw the countdown into canvas
+      function drawCountdownToCanvas(text) {
+        // clear
+        ctx.clearRect(0, 0, cw, ch);
+
+        // background (transparent)
+        // ctx.fillStyle = 'rgba(0,0,0,0.0)';
+        // ctx.fillRect(0,0,cw,ch);
+
+        // text styling
+        ctx.font = 'bold 56px Poppins, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // outline for legibility
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+        ctx.strokeText(text, cw/2, ch/2);
+        // fill
+        ctx.fillStyle = 'white';
+        ctx.fillText(text, cw/2, ch/2);
+      }
+
+      // initial draw
+      drawCountdownToCanvas('Loading...');
+
+      // Canvas texture and mesh
+      const textTexture = new THREE.CanvasTexture(textCanvas);
+      textTexture.minFilter = THREE.LinearFilter;
+      textTexture.generateMipmaps = false;
+
+      // plane using the canvas texture
+      const textPlaneGeometry = new THREE.PlaneGeometry(0.8, 0.35); // physical size on marker
+      const textPlaneMaterial = new THREE.MeshBasicMaterial({
+        map: textTexture,
+        transparent: true,
+        depthWrite: false
+      });
+      const textPlane = new THREE.Mesh(textPlaneGeometry, textPlaneMaterial);
+      // position text above the other content
+      textPlane.position.set(0, 0.35, 0.12); // slightly closer than foreground
+      group.add(textPlane);
+
+      // Add group to anchor
+      anchor.group.add(group);
+
+      // --- SMOOTHING & ZOOM IN animation ---
       const smoothedPosition = new THREE.Vector3();
       const smoothedQuaternion = new THREE.Quaternion();
 
-      // Animate scale on target detection (zoom-in effect)
       anchor.onTargetFound = () => {
+        // quick zoom-in
         setTimeout(() => {
-          const duration = 100;
+          const duration = 180; // ms
           const startTime = performance.now();
           const animate = (now) => {
-            const elapsed = now - startTime;
-            const t = Math.min(elapsed / duration, 1);
-            // Lerp scale from tiny (0.001) to full (1)
+            const t = Math.min((now - startTime) / duration, 1);
             const scale = 0.001 + (1 - 0.001) * t;
-            group.scale.set(scale, scale, scale);
+            group.scale.setScalar(scale);
             if (t < 1) requestAnimationFrame(animate);
           };
           requestAnimationFrame(animate);
-        }, 100);
+        }, 80);
       };
 
-      // Reset scale when the target is lost
       anchor.onTargetLost = () => {
         group.scale.set(0.001, 0.001, 0.001);
       };
 
-      // --- 5. Start AR Engine and Post-Start Camera Setup ---
-      
+      // Start MindAR
       await mindarThree.start();
 
-      // Find the video element MindAR created
-      const video = document.querySelector("video");
-      
-      // Try enabling continuous autofocus on start (if not already set in constraints)
+      // try enabling autofocus
+      const video = document.querySelector('video');
       if (video && video.srcObject) {
         const track = video.srcObject.getVideoTracks()[0];
-        const caps = track.getCapabilities();
-        if (caps.focusMode && caps.focusMode.includes("continuous")) {
-          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(()=>{});
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        if (caps.focusMode && caps.focusMode.includes('continuous')) {
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(()=>{});
         }
       }
 
-      // Tap to refocus (single-shot)
-      document.body.addEventListener("click", async () => {
+      // Tap to single-shot focus
+      document.body.addEventListener('click', async () => {
         if (video && video.srcObject) {
           const track = video.srcObject.getVideoTracks()[0];
-          const caps = track.getCapabilities();
-          if (caps.focusMode && caps.focusMode.includes("single-shot")) {
-            await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] }).catch(()=>{});
+          const caps = track.getCapabilities ? track.getCapabilities() : {};
+          if (caps.focusMode && caps.focusMode.includes('single-shot')) {
+            await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] }).catch(()=>{});
           }
         }
       });
 
-      // --- 6. Rendering Loop ---
-      
-      // Set renderer size and pixel ratio for high quality
+      // --- Rendering loop ---
       renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setPixelRatio(window.devicePixelRatio || 1);
 
       renderer.setAnimationLoop(() => {
-        // Apply smoothing to the content group's position and rotation
         if (anchor.group.visible) {
           const dist = smoothedPosition.distanceTo(anchor.group.position);
           const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
 
-          // Only update if movement or rotation is significant
           if (dist > 0.0005 || angle > 0.001) {
-            // Lerp (linear interpolation) for smoothing
             smoothedPosition.lerp(anchor.group.position, 0.08);
             smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
             group.position.copy(smoothedPosition);
@@ -233,41 +212,41 @@
         renderer.render(scene, camera);
       });
 
-      // Handle window resize events
-      window.addEventListener("resize", () => {
-          renderer.setSize(window.innerWidth, window.innerHeight);
+      window.addEventListener('resize', () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
       });
-    };
 
-    //countdown
-    const eventDate = new Date("2025-12-25T18:00:00").getTime();
+      // --- COUNTDOWN UPDATE: update canvas every second ---
+      function tickCountdown() {
+        const now = Date.now();
+        const distance = eventDate - now;
 
-    const countdownEl = document.querySelector("#countdownText");
+        if (distance <= 0) {
+          drawCountdownToCanvas('🎉 Event Started!');
+          textTexture.needsUpdate = true;
+          return;
+        }
 
-    function updateCountdown() {
-      const now = new Date().getTime(); // fetch current local device time
-      const distance = eventDate - now;
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-      if (distance <= 0) {
-        countdownEl.setAttribute("value", "🎉 Event Started!");
-        return;
+        const countdownText = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+        drawCountdownToCanvas(countdownText);
+        textTexture.needsUpdate = true;
       }
 
-      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-      const countdownText = `${days}d ${hours}h ${minutes}m ${seconds}s`;
-      countdownEl.setAttribute("value", countdownText);
+      // Update every 1s
+      tickCountdown();
+      setInterval(tickCountdown, 1000);
     }
 
-      // Update every second
-    setInterval(updateCountdown, 1000);
-    updateCountdown();
-
-    startAR();
-    
+    // start
+    startAR().catch(err => {
+      console.error('MindAR start failed:', err);
+      alert('Failed to start AR: ' + (err.message || err));
+    });
   </script>
 </body>
 </html>
