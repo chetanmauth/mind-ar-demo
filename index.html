@@ -42,7 +42,28 @@
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+  <a-scene
+      mindar-image="imageTargetSrc: ./targets.mind;"
+      color-space="sRGB"
+      renderer="colorManagement: true, physicallyCorrectLights"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false">
+    
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
+      <!-- 👇 Countdown text attached to marker -->
+      <a-entity mindar-image-target="targetIndex: 0">
+        <a-text
+          id="countdownText"
+          value="Loading..."
+          color="yellow"
+          align="center"
+          position="0 0.5 0"
+          width="2"
+        ></a-text>
+      </a-entity>
+    </a-scene>
+  
   <script>
     const startAR = async () => {
       let stream;
@@ -218,7 +239,35 @@
       });
     };
 
+    //countdown
+    const eventDate = new Date("2025-12-25T18:00:00").getTime();
+
+    const countdownEl = document.querySelector("#countdownText");
+
+    function updateCountdown() {
+      const now = new Date().getTime(); // fetch current local device time
+      const distance = eventDate - now;
+
+      if (distance <= 0) {
+        countdownEl.setAttribute("value", "🎉 Event Started!");
+        return;
+      }
+
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+      const countdownText = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+      countdownEl.setAttribute("value", countdownText);
+    }
+
+      // Update every second
+    setInterval(updateCountdown, 1000);
+    updateCountdown();
+
     startAR();
+    
   </script>
 </body>
 </html>
