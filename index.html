@@ -73,7 +73,13 @@
       bgPlane.position.set(0, -0.25, 0.05);
 
       // foreground plane (in front of background)
-      const fgGeometry = new THREE.PlaneGeometry(1.0, 1.0);
+      const image = foregroundTexture.image;
+      const aspect = image.width / image.height;
+
+      const height = 1.0;
+      const width = height * aspect;
+
+      const fgGeometry = new THREE.PlaneGeometry(width, height);
       const fgMaterial = new THREE.MeshBasicMaterial({
         map: foregroundTexture,
         transparent: true,
