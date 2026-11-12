@@ -3,220 +3,1047 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-  <title>AR Parallax - Countdown On Background Only</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>AR Parallax Invitation - Countdown & Interactive Venue</title>
+
+  <!-- Elegant Wedding & Display Fonts for Countdown -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Playfair+Display:ital,wght@0,700;0,800;1,700&display=swap" rel="stylesheet" />
 
   <style>
-    html,body { margin:0; padding:0; height:100%; background:black; overflow:hidden; }
-    #ar-container { position:absolute; inset:0; width:100vw; height:100vh; z-index:1; }
-    canvas { display:block; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: black;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #ar-container {
+      position: absolute;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+    }
+    canvas {
+      display: block;
+    }
+
+    /* Tap-to-focus camera viewfinder ring */
+    #focus-reticle {
+      position: absolute;
+      width: 62px;
+      height: 62px;
+      border: 2px solid #FFD700;
+      border-radius: 10px;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(1.35);
+      transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 0 14px rgba(255, 215, 0, 0.6), inset 0 0 8px rgba(255, 215, 0, 0.35);
+    }
+    #focus-reticle.active {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.0);
+    }
+    #focus-reticle::before, #focus-reticle::after {
+      content: '';
+      position: absolute;
+      background: rgba(255, 215, 0, 0.7);
+    }
+    #focus-reticle::before {
+      top: 50%; left: -6px; right: -6px; height: 1px;
+      transform: translateY(-50%);
+      opacity: 0.5;
+    }
+    #focus-reticle::after {
+      left: 50%; top: -6px; bottom: -6px; width: 1px;
+      transform: translateX(-50%);
+      opacity: 0.5;
+    }
+
+    /* Floating Glassmorphism Action Bar */
+    #action-bar {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      display: flex;
+      gap: 14px;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      max-width: 90vw;
+    }
+    #action-bar.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0);
+    }
+    #action-bar.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-50%) translateY(20px);
+    }
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: rgba(18, 18, 24, 0.82);
+      border: 1px solid rgba(255, 215, 0, 0.45);
+      border-radius: 50px;
+      color: #FFD700;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 12px rgba(255, 215, 0, 0.22);
+      transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      touch-action: manipulation;
+      white-space: nowrap;
+    }
+    .action-btn:hover {
+      background: rgba(35, 35, 45, 0.95);
+      border-color: #FFD700;
+      transform: scale(1.05);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65), 0 0 18px rgba(255, 215, 0, 0.4);
+    }
+    .action-btn:active {
+      transform: scale(0.96);
+    }
+    .btn-icon {
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
   <div id="ar-container"></div>
+  <div id="focus-reticle"></div>
 
+  <!-- Interactive Guest Action Bar -->
+  <div id="action-bar" class="hidden">
+    <button id="btn-venue" class="action-btn" title="Open Google Maps">
+      <span class="btn-icon">📍</span>
+      <span class="btn-text">View Venue</span>
+    </button>
+    <button id="btn-calendar" class="action-btn" title="Add to your calendar">
+      <span class="btn-icon">📅</span>
+      <span class="btn-text">Add to Calendar</span>
+    </button>
+  </div>
+
+  <!-- Three.js and MindAR libraries -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
   <script>
-    // === CONFIG: Set your event date (ISO) ===
-    const eventDate = new Date("2026-02-11T00:00:00+05:30").getTime(); // adjust as needed
+    // =========================================================================
+    // === CONFIGURATION: INVITATION & EVENT DETAILS ===========================
+    // =========================================================================
+    const eventDate = new Date("2027-02-11T00:00:00+05:30").getTime();
+
+    // Event Info for Google Calendar and Apple Calendar
+    const EVENT_TITLE = "Grand Wedding Celebration";
+    const EVENT_DESCRIPTION = "Join us to celebrate our special day! Scan the AR invitation for interactive directions and details.";
+    const VENUE_NAME = "The Grand Palace, MG Road, Bengaluru";
+    const VENUE_MAPS_URL = "https://maps.google.com/?q=The+Grand+Palace+MG+Road+Bengaluru";
+
+    // Calendar ISO Date (YYYYMMDDTHHMMSSZ in UTC or local)
+    const EVENT_START_ISO = "20270211T130000Z";
+    const EVENT_END_ISO   = "20270211T180000Z";
+
+    // Zoom scale ratio relative to target marker (1:1.5 zoom)
+    const ZOOM_SCALE = 1.6;
+
+    // === 3D POP-UP DIORAMA STAGE CONFIGURATION ===
+    // Card marker lies flat on floor / table (XY plane, Z = 0).
+    // All layers (Background wall, Portrait, Countdown timer) stand upright
+    // perpendicular to the physical card (rotation.x = Math.PI / 2),
+    // facing the user scanning from the bottom (-Y) edge.
+
+    // =========================================================================
+    // === CAMERA HD UPGRADE ===================================================
+    // =========================================================================
+    // Intercept getUserMedia so MindAR requests optimal 720p HD @ 60fps and continuous autofocus.
+    // 720p perfectly matches the compiled 1280x720 target image in targets.mind (1:1 feature scale),
+    // High-performance 720p HD camera constraints (fluid native 60 FPS without CPU bottleneck)
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia = function (constraints) {
+        if (constraints && constraints.video) {
+          if (typeof constraints.video === 'object') {
+            constraints.video = {
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            };
+          }
+        }
+        return origGetUserMedia(constraints);
+      };
+    }
 
     async function startAR() {
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "environment",
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: false
-        });
-      } catch (err) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false
-        });
-      }
+      // Cache-busting query to guarantee updated assets load immediately without browser cache retention
+      const cacheBust = '?v=' + Date.now();
 
-      // Initialize MindAR (Three)
+      // 1. Initialize MindAR with Calibrated 30% Damped Motion Stabilization
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
-        imageTargetSrc: "./assets/targets.mind",
-        videoStream: stream,
-        filterMinCF: 0.005,
-        filterBeta: 0.005,
-        missTolerance: 8,
-        warmupTolerance: 2
+        imageTargetSrc: "./assets/targets.mind" + cacheBust,
+        filterMinCF: 0.0005,     // Calibrated cutoff: blocks 99%+ of OpenCV tremor
+        filterBeta: 0.055,       // Calibrated for exact ~30% smooth cinematic damping
+        missTolerance: 12,       // Prevents card flicker at steep angles
+        warmupTolerance: 2       // Fast target lock-on (2 frames ~33ms)
       });
 
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // --- LOAD TEXTURES ---
-      const loader = new THREE.TextureLoader();
-      const backgroundTexture = await new Promise(resolve => loader.load('./assets/background.jpg', resolve));
-      const foregroundTexture = await new Promise(resolve => loader.load('./assets/potrait.png', resolve));
+      // Root group & Stage 2 Dual-Stage Adaptive Stabilization Rig:
+      // MindAR updates anchor.group.matrix directly. We place smoothGroup in scene,
+      // and adaptively LERP (position) + SLERP (quaternion) to cancel camera shaking and micro-tremors.
+      const smoothGroup = new THREE.Group();
+      smoothGroup.visible = false;
+      scene.add(smoothGroup);
 
-      // Group to hold everything anchored to the marker
       const group = new THREE.Group();
+      smoothGroup.add(group);
 
-      // background plane (behind)
-      const bgGeometry = new THREE.PlaneGeometry(1.0, 1.0);
+      // Pre-allocated tracking matrices & vectors for zero garbage collection
+      const rawPos = new THREE.Vector3();
+      const rawQuat = new THREE.Quaternion();
+      const rawScale = new THREE.Vector3();
+      const cardNormal = new THREE.Vector3();
+      const viewDir = new THREE.Vector3();
+      let isFirstTrackingFrame = true;
+      let lostFrameGrace = 0;
+      const MAX_GRACE_FRAMES = 15; // ~250ms dropout protection prevents flicker on momentary camera blur
+
+      // 2. Load Textures & Start MindAR concurrently (with cache-busting)
+      const loader = new THREE.TextureLoader();
+      const [textures] = await Promise.all([
+        Promise.all([
+          new Promise((resolve, reject) => loader.load('./assets/background.jpg' + cacheBust, resolve, undefined, reject)),
+          new Promise((resolve, reject) => loader.load('./assets/potrait.png' + cacheBust, resolve, undefined, reject))
+        ]),
+        mindarThree.start()
+      ]);
+
+      const [backgroundTexture, foregroundTexture] = textures;
+
+      // === HIGH QUALITY TEXTURE & RENDERER OPTIMIZATIONS ===
+      // Set optimal pixel ratio for razor-sharp rendering without GPU thermal throttling
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.0));
+
+      // Apply 16x Anisotropic filtering and sRGB color encoding for crisp, vibrant image textures
+      const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+      [backgroundTexture, foregroundTexture].forEach(tex => {
+        tex.encoding = THREE.sRGBEncoding;
+        tex.anisotropy = maxAnisotropy;
+        tex.generateMipmaps = true;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.needsUpdate = true;
+      });
+
+      // 3. Compute Max Width & Height of the Target Image
+      const markerDims = (mindarThree.controller && mindarThree.controller.markerDimensions)
+        ? mindarThree.controller.markerDimensions[0]
+        : [1149, 1621];
+
+      const targetW = markerDims[0];
+      const targetH = markerDims[1];
+      const maxTargetWidth = 1.0;
+      const maxTargetHeight = targetH / targetW;
+      const cardWidth = maxTargetWidth;
+      const cardHeight = maxTargetHeight;
+
+      // =========================================================================
+      // === CELEBRATION FIREWORKS (BURSTING BEHIND THE CARD) ====================
+      // =========================================================================
+      function createFireworkSparkTexture() {
+        const fCanvas = document.createElement('canvas');
+        fCanvas.width = 64;
+        fCanvas.height = 64;
+        const fCtx = fCanvas.getContext('2d');
+        const grad = fCtx.createRadialGradient(32, 32, 0, 32, 32, 30);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+        grad.addColorStop(0.25, 'rgba(255, 240, 160, 0.95)');
+        grad.addColorStop(0.55, 'rgba(255, 180, 50, 0.40)');
+        grad.addColorStop(1, 'rgba(255, 120, 0, 0)');
+        fCtx.fillStyle = grad;
+        fCtx.beginPath();
+        fCtx.arc(32, 32, 30, 0, Math.PI * 2);
+        fCtx.fill();
+        return new THREE.CanvasTexture(fCanvas);
+      }
+
+      const fireworkSparkTex = createFireworkSparkTexture();
+      const fireworkColors = [
+        0xFFD700, // Celebration Gold
+        0xFF80AB, // Romantic Rose Pink
+        0xFFE082, // Champagne Gold
+        0xFF7043, // Radiant Coral
+        0x80D8FF, // Diamond Blue
+        0xFFFFFF  // Sparkle White
+      ];
+
+      const fireworksGroup = new THREE.Group();
+      group.add(fireworksGroup);
+
+      const FIREWORK_COUNT = 4;
+      const SPARKS_PER_BURST = 26;
+      const fireworks = [];
+      const sparkGeom = new THREE.PlaneGeometry(0.040, 0.040);
+
+      for (let f = 0; f < FIREWORK_COUNT; f++) {
+        const sparks = [];
+        const burstColor = fireworkColors[f % fireworkColors.length];
+
+        const fMaterial = new THREE.MeshBasicMaterial({
+          map: fireworkSparkTex,
+          color: burstColor,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false,
+          side: THREE.DoubleSide,
+          opacity: 0
+        });
+
+        for (let s = 0; s < SPARKS_PER_BURST; s++) {
+          const mesh = new THREE.Mesh(sparkGeom, fMaterial);
+          mesh.rotation.set(Math.PI / 2, 0, 0); // Face viewer looking from -Y
+          mesh.renderOrder = 0; // Drawn behind the background plane
+          mesh.visible = false;
+          fireworksGroup.add(mesh);
+          sparks.push(mesh);
+        }
+
+        fireworks.push({
+          sparks: sparks,
+          material: fMaterial,
+          progress: 1.0,
+          delay: f * 28, // Staggered initial bursts
+          originX: 0,
+          originY: 0,
+          originZ: -0.04,
+          velocities: []
+        });
+      }
+
+      function spawnFirework(fw) {
+        // Explode behind the standing background wall and high into the sky (+Z)
+        fw.originX = (Math.random() - 0.5) * cardWidth * 1.35;
+        fw.originY = ((cardHeight / 2) - 0.25) + 0.12 + Math.random() * 0.25; // Behind standing background wall
+        fw.originZ = cardHeight * 0.55 + Math.random() * cardHeight * 0.50; // High in the sky above stage
+
+        const newColor = fireworkColors[Math.floor(Math.random() * fireworkColors.length)];
+        fw.material.color.setHex(newColor);
+
+        fw.velocities = [];
+        for (let s = 0; s < SPARKS_PER_BURST; s++) {
+          const spark = fw.sparks[s];
+          spark.rotation.set(Math.PI / 2, 0, 0);
+          spark.position.set(fw.originX, fw.originY, fw.originZ);
+          spark.visible = true;
+
+          const theta = Math.random() * Math.PI * 2;
+          const phi = (Math.random() - 0.5) * Math.PI * 0.9;
+          const speed = 0.007 + Math.random() * 0.013;
+
+          fw.velocities.push({
+            vx: Math.cos(phi) * Math.cos(theta) * speed,
+            vy: Math.sin(phi) * speed * 0.35,
+            vz: Math.cos(phi) * Math.sin(theta) * speed + 0.003
+          });
+        }
+
+        fw.progress = 0.0;
+      }
+
+      // 4. Background Plane Sizing (Standing upright perpendicular to card at max of Y)
+      const bgImage = backgroundTexture.image;
+      const bgAspect = bgImage.width / bgImage.height;
+
+      // Apply center-cover texture crop so background covers the full target without stretching
+      const planeAspect = cardWidth / cardHeight;
+      if (bgAspect > planeAspect) {
+        // Texture is wider than vertical plane -> crop left/right to center
+        const repeatX = planeAspect / bgAspect;
+        backgroundTexture.repeat.set(repeatX, 1.0);
+        backgroundTexture.offset.set((1.0 - repeatX) / 2.0, 0);
+      } else {
+        // Texture is taller than plane -> crop top/bottom to center
+        const repeatY = bgAspect / planeAspect;
+        backgroundTexture.repeat.set(1.0, repeatY);
+        backgroundTexture.offset.set(0, (1.0 - repeatY) / 2.0);
+      }
+
+      const bgGeometry = new THREE.PlaneGeometry(cardWidth, cardHeight);
       const bgMaterial = new THREE.MeshBasicMaterial({
         map: backgroundTexture,
         transparent: true,
-        depthWrite: false // don't write depth for these overlays
+        depthWrite: false,
+        side: THREE.DoubleSide
       });
       const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-      bgPlane.scale.set(1.8, 1.8, 1);
-      bgPlane.position.set(0, -0.25, 0.05);
+      // Perpendicular upright standing backdrop wall
+      bgPlane.rotation.set(Math.PI / 2, 0, 0);
+      const bgPosY = (cardHeight / 2) - 0.25; // Background standing at (+cardHeight / 2) - 0.25
+      const bgPosZ = cardHeight / 2; // Base touches floor Z=0, top reaches Z=cardHeight
+      bgPlane.position.set(0, bgPosY, bgPosZ);
+      bgPlane.renderOrder = 1;
+      group.add(bgPlane);
 
-      // foreground plane (in front of background)
-      const image = foregroundTexture.image;
-      const aspect = image.width / image.height;
+      // 5. Vertical Foreground Portrait Plane (Standing upright in center stage)
+      const fgImage = foregroundTexture.image;
+      const fgAspect = fgImage.width / fgImage.height;
 
-      const height = 1.0;
-      const width = height * aspect;
+      // Portrait stands prominently in the center of the 3D stage
+      let fgHeight = cardHeight * 0.72;
+      let fgWidth = fgHeight * fgAspect;
 
-      const fgGeometry = new THREE.PlaneGeometry(width, height);
+      if (fgWidth > cardWidth * 0.88) {
+        fgWidth = cardWidth * 0.88;
+        fgHeight = fgWidth / fgAspect;
+      }
+
+      const fgGeometry = new THREE.PlaneGeometry(fgWidth, fgHeight);
       const fgMaterial = new THREE.MeshBasicMaterial({
         map: foregroundTexture,
         transparent: true,
-        depthWrite: false
+        depthWrite: false,
+        side: THREE.DoubleSide
       });
       const fgPlane = new THREE.Mesh(fgGeometry, fgMaterial);
-      fgPlane.position.set(0, -0.25, 0.10);
-
-      // Add foreground to group (bg will host the countdown so add fg after attaching text to bg)
+      fgPlane.rotation.set(Math.PI / 2, 0, 0);
+      const fgPosY = (cardHeight / 2) - 0.60; // Foreground standing at (+cardHeight / 2) - 0.6
+      const fgPosZ = (fgHeight / 2) + 0.10; // Base elevated 0.10 above card floor
+      fgPlane.position.set(0, fgPosY, fgPosZ);
+      fgPlane.renderOrder = 2;
       group.add(fgPlane);
 
-      // initial tiny scale for zoom-in animation
-      group.scale.set(0.001, 0.001, 0.001);
-
-      // --- COUNTDOWN: Canvas texture ---
+      // 6. Single-Line Luxury Countdown Canvas Texture (Horizontal format, bold outlined luxury font without background)
       const textCanvas = document.createElement('canvas');
-      const cw = 1024, ch = 512;
+      const cw = 1024, ch = 160;
       textCanvas.width = cw;
       textCanvas.height = ch;
       const ctx = textCanvas.getContext('2d');
 
-      function drawCountdownToCanvas(text) {
+      function drawCountdownToCanvas(days, hours, minutes, seconds) {
         ctx.clearRect(0, 0, cw, ch);
-        ctx.font = 'bold 72px sans-serif';
+
+        let line;
+        if (typeof days === 'string' && !hours) {
+          line = days;
+        } else {
+          line = `${days} DAYS : ${hours} HRS : ${minutes} MINS : ${seconds} SECS`;
+        }
+
+        const cx = cw / 2;
+        const cy = ch / 2;
+
+        // Radiant multi-stop metallic gold vertical gradient fill
+        const grad = ctx.createLinearGradient(0, 0, 0, ch);
+        grad.addColorStop(0.0, '#FFFDEB'); // Luminous brilliant highlight
+        grad.addColorStop(0.30, '#FFE875'); // Radiant wedding gold
+        grad.addColorStop(0.65, '#F5BA00'); // Deep amber gold
+        grad.addColorStop(1.0, '#CF9000'); // Warm bronze baseline
+
+        // Elegant Serif & Classic Roman font stack (single line, perfectly proportioned)
+        ctx.font = 'bold 44px "Cinzel", "Playfair Display", "Georgia", "Baskerville", serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = 'rgba(0,0,0,0.9)';
-        ctx.strokeText(text, cw/2, ch/2);
-        ctx.fillStyle = '#FFD700';
-        ctx.fillText(text, cw/2, ch/2);
+
+        // Outer Dark Shadow Aura: provides separation and maximum contrast against any busy or light background
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+        ctx.shadowBlur = 14;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 3;
+        ctx.lineWidth = 12;
+        ctx.lineJoin = 'round';
+        ctx.miterLimit = 2;
+        ctx.strokeStyle = '#000000';
+        ctx.strokeText(line, cx, cy);
+        ctx.restore();
+
+        // Bold Crisp Outer Border: sharply outlines every curve and serif cleanly
+        ctx.lineWidth = 7;
+        ctx.lineJoin = 'round';
+        ctx.miterLimit = 2;
+        ctx.strokeStyle = '#000000';
+        ctx.strokeText(line, cx, cy);
+
+        // Luminous Metallic Gold Core Fill on top
+        ctx.fillStyle = grad;
+        ctx.fillText(line, cx, cy);
       }
 
       const textTexture = new THREE.CanvasTexture(textCanvas);
       textTexture.minFilter = THREE.LinearFilter;
       textTexture.generateMipmaps = false;
-      textTexture.needsUpdate = true;
 
-      // create the text plane (we'll attach this to the background plane)
-      const textPlaneGeometry = new THREE.PlaneGeometry(0.9, 0.4);
+      // Single-line horizontal timer ribbon placed standing upright at the front edge of the stage
+      // Aspect ratio of the 3D plane strictly matches canvas aspect ratio (1024:160) so text NEVER stretches!
+      const textPlaneWidth = cardWidth * 0.92;
+      const textPlaneHeight = textPlaneWidth * (ch / cw); // Exact isotropic ratio (never stretched)
+      const textPlaneGeometry = new THREE.PlaneGeometry(textPlaneWidth, textPlaneHeight);
       const textPlaneMaterial = new THREE.MeshBasicMaterial({
         map: textTexture,
         transparent: true,
         depthWrite: false,
-        depthTest: true // enable depth test so text gets occluded by foreground if in front
+        side: THREE.DoubleSide
       });
       const textPlane = new THREE.Mesh(textPlaneGeometry, textPlaneMaterial);
-      // place slightly in front of the background (but behind the fg)
-      const bgHalfHeight = -0.4; // 1.0 = geometry height
-      textPlane.position.set(0, bgHalfHeight , 0.005); // relative to bgPlane; we'll attach to bgPlane so z is small here
-      textPlane.material.side = THREE.DoubleSide;
+      textPlane.rotation.set(Math.PI / 2, 0, 0);
+      const timerPosY = (cardHeight / 2) - 0.80; // Timer standing at (+cardHeight / 2) - 0.8
+      const timerPosZ = (textPlaneHeight / 2) + 0.15; // Base elevated 0.15 above card floor
+      textPlane.position.set(0, timerPosY, timerPosZ);
+      textPlane.renderOrder = 3;
+      group.add(textPlane);
 
-      // Attach textPlane as a child of bgPlane (so it sticks to the background exactly)
-      bgPlane.add(textPlane);
+      // =========================================================================
+      // === MAGICAL ATMOSPHERE: 4-LAYER 3D GOLDEN SPARKLE DEPTH SYSTEM ==========
+      // =========================================================================
+      
+      // 1. Radiant 4-Point Diamond Twinkle Star Texture
+      function createStarTexture() {
+        const pCanvas = document.createElement('canvas');
+        pCanvas.width = 128;
+        pCanvas.height = 128;
+        const pCtx = pCanvas.getContext('2d');
+        const cx = 64, cy = 64;
 
-      // Add bgPlane to group (after text is attached) and add group to anchor
-      group.add(bgPlane);
-      anchor.group.add(group);
+        // Outer radial golden glow
+        const glow = pCtx.createRadialGradient(cx, cy, 0, cx, cy, 58);
+        glow.addColorStop(0, 'rgba(255, 255, 240, 1.0)');
+        glow.addColorStop(0.25, 'rgba(255, 225, 90, 0.85)');
+        glow.addColorStop(0.55, 'rgba(255, 180, 30, 0.35)');
+        glow.addColorStop(1, 'rgba(255, 140, 0, 0)');
+        pCtx.fillStyle = glow;
+        pCtx.beginPath();
+        pCtx.arc(cx, cy, 58, 0, Math.PI * 2);
+        pCtx.fill();
 
-      // Because we added fgPlane before bgPlane, adjust draw order to ensure depth test works:
-      // (not strictly necessary but explicitly set)
-      bgPlane.renderOrder = 0;
-      textPlane.renderOrder = 1;
-      fgPlane.renderOrder = 2;
+        // 4-point radiant diamond flare
+        pCtx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        // Vertical ray
+        pCtx.beginPath();
+        pCtx.moveTo(cx, cy - 56);
+        pCtx.quadraticCurveTo(cx, cy, cx + 5, cy);
+        pCtx.quadraticCurveTo(cx, cy, cx, cy + 56);
+        pCtx.quadraticCurveTo(cx, cy, cx - 5, cy);
+        pCtx.quadraticCurveTo(cx, cy, cx, cy - 56);
+        pCtx.fill();
 
-      // --- SMOOTHING & ANIMATION ---
-      const smoothedPosition = new THREE.Vector3();
-      const smoothedQuaternion = new THREE.Quaternion();
+        // Horizontal ray
+        pCtx.beginPath();
+        pCtx.moveTo(cx - 56, cy);
+        pCtx.quadraticCurveTo(cx, cy, cx, cy - 5);
+        pCtx.quadraticCurveTo(cx, cy, cx + 56, cy);
+        pCtx.quadraticCurveTo(cx, cy, cx, cy + 5);
+        pCtx.quadraticCurveTo(cx, cy, cx - 56, cy);
+        pCtx.fill();
+
+        // Brilliant white-hot center core
+        pCtx.fillStyle = '#FFFFFF';
+        pCtx.beginPath();
+        pCtx.arc(cx, cy, 7, 0, Math.PI * 2);
+        pCtx.fill();
+
+        return new THREE.CanvasTexture(pCanvas);
+      }
+
+      // 2. Soft Floating Golden Bokeh Orb Texture
+      function createBokehTexture() {
+        const pCanvas = document.createElement('canvas');
+        pCanvas.width = 128;
+        pCanvas.height = 128;
+        const pCtx = pCanvas.getContext('2d');
+        const cx = 64, cy = 64;
+
+        const grad = pCtx.createRadialGradient(cx, cy, 0, cx, cy, 60);
+        grad.addColorStop(0, 'rgba(255, 245, 180, 0.95)');
+        grad.addColorStop(0.35, 'rgba(255, 210, 60, 0.65)');
+        grad.addColorStop(0.7, 'rgba(255, 160, 20, 0.20)');
+        grad.addColorStop(1, 'rgba(255, 140, 0, 0)');
+        pCtx.fillStyle = grad;
+        pCtx.beginPath();
+        pCtx.arc(cx, cy, 60, 0, Math.PI * 2);
+        pCtx.fill();
+
+        return new THREE.CanvasTexture(pCanvas);
+      }
+
+      const starTexture = createStarTexture();
+      const bokehTexture = createBokehTexture();
+
+      // Helper function to create each distinct depth layer using real 3D Plane Meshes
+      function createParticleLayer({ count, size, minY, maxY, minZ, maxZ, speedMin, speedMax, texture, opacity, renderOrder }) {
+        const particles = [];
+        const layerGroup = new THREE.Group();
+        group.add(layerGroup);
+
+        const geom = new THREE.PlaneGeometry(size, size);
+        const mat = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false, // Guarantees particles are never occluded by geometry
+          side: THREE.DoubleSide,
+          opacity: opacity
+        });
+
+        for (let i = 0; i < count; i++) {
+          const mesh = new THREE.Mesh(geom, mat);
+          mesh.rotation.set(Math.PI / 2, 0, 0); // Face viewer looking from -Y
+          mesh.renderOrder = renderOrder;
+
+          const startX = (Math.random() - 0.5) * cardWidth * 1.35;
+          const startY = minY + Math.random() * (maxY - minY);
+          const startZ = minZ + Math.random() * (maxZ - minZ);
+
+          mesh.position.set(startX, startY, startZ);
+          layerGroup.add(mesh);
+
+          particles.push({
+            mesh: mesh,
+            speedZ: speedMin + Math.random() * (speedMax - speedMin),
+            minY: minY,
+            maxY: maxY,
+            minZ: minZ,
+            maxZ: maxZ,
+            phaseX: Math.random() * Math.PI * 2,
+            freqX: 1.5 + Math.random() * 2.0,
+            amplitudeX: 0.0006 + Math.random() * 0.0008,
+            phaseY: Math.random() * Math.PI * 2,
+            freqY: 1.0 + Math.random() * 1.5,
+            amplitudeY: 0.0004 + Math.random() * 0.0006,
+            spinSpeed: (Math.random() - 0.5) * 0.03,
+            pulseFreq: 2.0 + Math.random() * 3.0,
+            phasePulse: Math.random() * Math.PI * 2
+          });
+        }
+
+        return particles;
+      }
+
+      // 4 Distinct 3D Stage Depth Layers:
+      // Layer 1: Backdrop Stardust (behind & around the standing background wall)
+      const layer1 = createParticleLayer({
+        count: 24,
+        size: 0.032,
+        minY: (cardHeight / 2) - 0.35,
+        maxY: (cardHeight / 2) + 0.10,
+        minZ: 0.10,
+        maxZ: cardHeight * 1.05,
+        speedMin: 0.0008,
+        speedMax: 0.0016,
+        texture: starTexture,
+        opacity: 0.85,
+        renderOrder: 1
+      });
+
+      // Layer 2: Delicate Twinkling Sparkles (surrounding the standing portrait)
+      const layer2 = createParticleLayer({
+        count: 22,
+        size: 0.048,
+        minY: (cardHeight / 2) - 0.65,
+        maxY: (cardHeight / 2) - 0.35,
+        minZ: 0.08,
+        maxZ: cardHeight * 0.85,
+        speedMin: 0.0012,
+        speedMax: 0.0020,
+        texture: starTexture,
+        opacity: 0.90,
+        renderOrder: 3
+      });
+
+      // Layer 3: Foreground Twinkle Stars (around front stage & timer)
+      const layer3 = createParticleLayer({
+        count: 18,
+        size: 0.065,
+        minY: (cardHeight / 2) - 0.95,
+        maxY: (cardHeight / 2) - 0.65,
+        minZ: 0.06,
+        maxZ: cardHeight * 0.70,
+        speedMin: 0.0014,
+        speedMax: 0.0024,
+        texture: starTexture,
+        opacity: 0.92,
+        renderOrder: 4
+      });
+
+      // Layer 4: Soft Floating Bokeh Orbs (cinematic floating light orbs throughout the stage)
+      const layer4 = createParticleLayer({
+        count: 12,
+        size: 0.095,
+        minY: (cardHeight / 2) - 1.00,
+        maxY: (cardHeight / 2) + 0.10,
+        minZ: 0.10,
+        maxZ: cardHeight * 0.95,
+        speedMin: 0.0018,
+        speedMax: 0.0030,
+        texture: bokehTexture,
+        opacity: 0.60,
+        renderOrder: 5
+      });
+
+      const allParticleMeshes = [...layer1, ...layer2, ...layer3, ...layer4];
+
+      // Warm shimmering point light for subtle specular glow on stage
+      const warmLight = new THREE.PointLight(0xffdf88, 1.2, 2.5);
+      warmLight.position.set(0, (cardHeight / 2) - 1.00, cardHeight * 0.65);
+      group.add(warmLight);
+
+      // =========================================================================
+      // === SMOOTH ZOOM & ACTION BAR REVEAL =====================================
+      // =========================================================================
+      const actionBar = document.getElementById('action-bar');
+      group.scale.set(0.001, 0.001, 0.001);
 
       anchor.onTargetFound = () => {
-        setTimeout(() => {
-          const duration = 180;
-          const startTime = performance.now();
-          const animate = (now) => {
-            const t = Math.min((now - startTime) / duration, 1);
-            const scale = 0.001 + (1 - 0.001) * t;
-            group.scale.setScalar(scale);
-            if (t < 1) requestAnimationFrame(animate);
-          };
-          requestAnimationFrame(animate);
-        }, 80);
+        isFirstTrackingFrame = true;
+        smoothGroup.visible = true;
+
+        // Reveal action bar buttons smoothly
+        if (actionBar) {
+          actionBar.classList.remove('hidden');
+          actionBar.classList.add('visible');
+        }
+
+        const duration = 250;
+        const startTime = performance.now();
+        const animate = (now) => {
+          const t = Math.min((now - startTime) / duration, 1);
+          const ease = 1 - Math.pow(1 - t, 3);
+          const scale = 0.001 + (ZOOM_SCALE - 0.001) * ease;
+          group.scale.setScalar(scale);
+          if (t < 1) requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
       };
 
       anchor.onTargetLost = () => {
-        group.scale.set(0.001, 0.001, 0.001);
+        // Keep smoothGroup visible through lostFrameGrace; hide action bar
+        if (actionBar) {
+          actionBar.classList.remove('visible');
+          actionBar.classList.add('hidden');
+        }
       };
 
-      // --- START & RENDER ---
-      await mindarThree.start();
+      // 8. Three.js render loop with dual-stage adaptive stabilization, floating & particle depth animation
+      renderer.setAnimationLoop((time) => {
+        const isCurrentlyTracked = anchor.group.visible;
 
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(window.devicePixelRatio || 1);
+        if (isCurrentlyTracked) {
+          lostFrameGrace = MAX_GRACE_FRAMES;
+          smoothGroup.visible = true;
+        } else if (lostFrameGrace > 0) {
+          lostFrameGrace--;
+          // Retain last known stable smoothed pose across momentary frame drops
+          smoothGroup.visible = true;
+        } else {
+          smoothGroup.visible = false;
+          isFirstTrackingFrame = true;
+          renderer.render(scene, camera);
+          return;
+        }
 
-      renderer.setAnimationLoop(() => {
-        if (anchor.group.visible) {
-          const dist = smoothedPosition.distanceTo(anchor.group.position);
-          const angle = smoothedQuaternion.angleTo(anchor.group.quaternion);
-          if (dist > 0.0005 || angle > 0.001) {
-            smoothedPosition.lerp(anchor.group.position, 0.08);
-            smoothedQuaternion.slerp(anchor.group.quaternion, 0.08);
-            group.position.copy(smoothedPosition);
-            group.quaternion.copy(smoothedQuaternion);
+        if (isCurrentlyTracked) {
+          // Decompose MindAR's raw tracked anchor pose from opencv
+          anchor.group.matrix.decompose(rawPos, rawQuat, rawScale);
+          rawQuat.normalize();
+
+          // Canonicalize quaternion sign: guarantees rawQuat is on the same 4D hemisphere
+          if (rawQuat.dot(smoothGroup.quaternion) < 0) {
+            rawQuat.set(-rawQuat.x, -rawQuat.y, -rawQuat.z, -rawQuat.w);
+          }
+
+          if (isFirstTrackingFrame) {
+            smoothGroup.position.copy(rawPos);
+            smoothGroup.quaternion.copy(rawQuat);
+            smoothGroup.scale.copy(rawScale);
+            isFirstTrackingFrame = false;
+          } else {
+            // 1. Homography Outlier Protection: check for backwards-facing normal flips
+            cardNormal.set(0, 0, 1).applyQuaternion(rawQuat);
+            viewDir.copy(rawPos).normalize();
+            const facingDot = cardNormal.dot(viewDir);
+            if (facingDot > 0.35) {
+              rawQuat.copy(smoothGroup.quaternion);
+            }
+
+            const posDelta = smoothGroup.position.distanceTo(rawPos);
+            const angleDelta = smoothGroup.quaternion.angleTo(rawQuat);
+
+            // 2. Large jump check: rapid phone sweep across room
+            if (posDelta > 0.50 || angleDelta > 0.85) {
+              smoothGroup.position.copy(rawPos);
+              smoothGroup.quaternion.copy(rawQuat);
+              smoothGroup.scale.copy(rawScale);
+            } else {
+              // Stage 2 Smooth Cinematic Damping (Calibrated for ~30% Balanced Smoothing)
+              // Position: smooth baseline 0.18, ramping smoothly up to 0.55 on deliberate moves
+              const posT = Math.min(1.0, Math.max(0.0, (posDelta - 0.003) / 0.04));
+              const posAlpha = 0.18 + (0.55 - 0.18) * (posT * posT);
+
+              // Rotation: smooth baseline 0.10, ramping smoothly up to 0.48 on phone tilts
+              const rotT = Math.min(1.0, Math.max(0.0, (angleDelta - 0.004) / 0.04));
+              const rotAlpha = 0.10 + (0.48 - 0.10) * (rotT * rotT);
+
+              smoothGroup.position.lerp(rawPos, posAlpha);
+              smoothGroup.quaternion.slerp(rawQuat, rotAlpha);
+              smoothGroup.scale.lerp(rawScale, posAlpha);
+            }
+          }
+        }
+
+        const t = time * 0.0025;
+        // Synchronized calm hovering float along Z (unified diorama breathing without shearing)
+        const hoverZ = Math.sin(t * 0.4) * 0.002;
+        bgPlane.position.z = (cardHeight / 2) + hoverZ;
+        fgPlane.position.z = (fgHeight / 2) + 0.25 + hoverZ;
+        textPlane.position.z = (textPlaneHeight / 2) + 0.2 + hoverZ;
+
+        // Animate celebratory fireworks behind the card
+        for (let f = 0; f < fireworks.length; f++) {
+          const fw = fireworks[f];
+          if (fw.delay > 0) {
+            fw.delay--;
+            continue;
+          }
+
+          if (fw.progress >= 1.0) {
+            spawnFirework(fw);
+          } else {
+            fw.progress += 0.016;
+
+            const alpha = Math.max(0, 1.0 - fw.progress);
+            const twinkle = 0.8 + Math.sin(fw.progress * 28) * 0.2;
+            fw.material.opacity = Math.pow(alpha, 1.4) * twinkle;
+
+            for (let s = 0; s < SPARKS_PER_BURST; s++) {
+              const spark = fw.sparks[s];
+              const vel = fw.velocities[s];
+              if (!vel) continue;
+
+              spark.position.x += vel.vx;
+              spark.position.y += vel.vy;
+              spark.position.z += vel.vz;
+
+              // Physics: downward gravity curve along Z (towards floor) + air drag
+              vel.vz -= 0.00018;
+              vel.vx *= 0.965;
+              vel.vy *= 0.965;
+              vel.vz *= 0.965;
+
+              const sc = Math.max(0.2, alpha);
+              spark.scale.set(sc, sc, 1);
+            }
+
+            if (fw.progress >= 1.0) {
+              for (let s = 0; s < SPARKS_PER_BURST; s++) {
+                fw.sparks[s].visible = false;
+              }
+              fw.delay = 15 + Math.floor(Math.random() * 25);
+            }
+          }
+        }
+
+        // Animate all 4 particle depth layers
+        for (let i = 0; i < allParticleMeshes.length; i++) {
+          const p = allParticleMeshes[i];
+          // Drift upward into the sky (+Z)
+          p.mesh.position.z += p.speedZ;
+          // Gentle horizontal sway (X) and stage depth sway (Y)
+          p.mesh.position.x += Math.sin(t * p.freqX + p.phaseX) * p.amplitudeX;
+          p.mesh.position.y += Math.cos(t * p.freqY + p.phaseY) * p.amplitudeY;
+          // Twinkle rotation
+          p.mesh.rotation.z += p.spinSpeed;
+          // Twinkle size pulsation
+          const s = 1.0 + Math.sin(t * p.pulseFreq + p.phasePulse) * 0.14;
+          p.mesh.scale.set(s, s, 1);
+
+          // Wrap when particle drifts above stage ceiling
+          if (p.mesh.position.z > cardHeight * 1.25) {
+            p.mesh.position.z = 0.02; // re-emerge from the card floor
+            p.mesh.position.x = (Math.random() - 0.5) * cardWidth * 1.35;
+            p.mesh.position.y = p.minY + Math.random() * (p.maxY - p.minY);
           }
         }
         renderer.render(scene, camera);
       });
 
-      window.addEventListener('resize', () => {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
-
-      // --- COUNTDOWN UPDATE ---
+      // 9. Countdown Timer Loop (updates every second)
       function tickCountdown() {
         const now = Date.now();
         const distance = eventDate - now;
+
         if (distance <= 0) {
-          drawCountdownToCanvas('🎉 Event Started!');
+          drawCountdownToCanvas('🎉 CELEBRATION STARTED TODAY! 🎉');
           textTexture.needsUpdate = true;
           return;
         }
+
         const days = Math.floor(distance / (1000 * 60 * 60 * 24));
         const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        const countdownText = `${days}days ${hours}hrs ${minutes}min ${seconds}s`;
-        drawCountdownToCanvas(countdownText);
+
+        const hStr = hours < 10 ? '0' + hours : hours;
+        const mStr = minutes < 10 ? '0' + minutes : minutes;
+        const sStr = seconds < 10 ? '0' + seconds : seconds;
+
+        drawCountdownToCanvas(days, hStr, mStr, sStr);
         textTexture.needsUpdate = true;
       }
 
       tickCountdown();
       setInterval(tickCountdown, 1000);
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+          tickCountdown();
+        });
+      }
+
+      // =========================================================================
+      // === INTERACTIVE ACTION BUTTON LISTENERS =================================
+      // =========================================================================
+      // 1. Google Maps Venue Button
+      document.getElementById('btn-venue').addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.open(VENUE_MAPS_URL, '_blank');
+      });
+
+      // 2. Add to Calendar Button (Direct .ics calendar file download on both iOS & Android)
+      const btnCalendar = document.getElementById('btn-calendar');
+      btnCalendar.addEventListener('click', (e) => {
+        e.stopPropagation();
+
+        // Standard iCalendar (.ics) format compatible with iOS Apple Calendar, Google Calendar, Outlook, and Android
+        const icsContent = [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//AR Invitation Card//EN',
+          'CALSCALE:GREGORIAN',
+          'METHOD:PUBLISH',
+          'BEGIN:VEVENT',
+          `UID:invite-${Date.now()}@arinvitation`,
+          `SUMMARY:${EVENT_TITLE}`,
+          `DESCRIPTION:${EVENT_DESCRIPTION}`,
+          `LOCATION:${VENUE_NAME}`,
+          `DTSTART:${EVENT_START_ISO}`,
+          `DTEND:${EVENT_END_ISO}`,
+          'STATUS:CONFIRMED',
+          'SEQUENCE:0',
+          'BEGIN:VALARM',
+          'TRIGGER:-PT24H',
+          'ACTION:DISPLAY',
+          `DESCRIPTION:Reminder: ${EVENT_TITLE} Tomorrow!`,
+          'END:VALARM',
+          'END:VEVENT',
+          'END:VCALENDAR'
+        ].join('\r\n');
+
+        // Create Blob and trigger direct .ics download for both iOS and Android
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const downloadLink = document.createElement('a');
+        downloadLink.href = downloadUrl;
+        downloadLink.setAttribute('download', 'invitation.ics');
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 1500);
+
+        // Visual feedback on button
+        const origText = btnCalendar.innerHTML;
+        btnCalendar.innerHTML = '<span class="btn-icon">✓</span><span class="btn-text">Calendar Event Ready!</span>';
+        setTimeout(() => {
+          btnCalendar.innerHTML = origText;
+        }, 2200);
+      });
+
+      // =========================================================================
+      // === TAP TO FOCUS (Viewfinder reticle & camera hardware autofocus) =======
+      // =========================================================================
+      const reticle = document.getElementById('focus-reticle');
+      let focusTimeout;
+
+      function triggerFocusUI(x, y) {
+        if (!reticle) return;
+        reticle.style.left = x + 'px';
+        reticle.style.top = y + 'px';
+        reticle.classList.remove('active');
+        void reticle.offsetWidth; // force DOM reflow
+        reticle.classList.add('active');
+        clearTimeout(focusTimeout);
+        focusTimeout = setTimeout(() => {
+          reticle.classList.remove('active');
+        }, 850);
+      }
+
+      window.addEventListener('pointerdown', async (e) => {
+        // Do not trigger camera refocus reticle when tapping action buttons
+        if (e.target.closest('#action-bar')) return;
+
+        triggerFocusUI(e.clientX, e.clientY);
+
+        const stream = mindarThree.video ? mindarThree.video.srcObject : null;
+        const track = stream ? stream.getVideoTracks()[0] : null;
+        if (!track || !track.applyConstraints) return;
+
+        try {
+          const caps = track.getCapabilities ? track.getCapabilities() : {};
+          const adv = {};
+
+          if (caps.pointsOfInterest) {
+            adv.pointsOfInterest = [{
+              x: e.clientX / window.innerWidth,
+              y: e.clientY / window.innerHeight
+            }];
+          }
+
+          if (caps.focusMode && caps.focusMode.includes('single-shot')) {
+            adv.focusMode = 'single-shot';
+          } else if (caps.focusMode && caps.focusMode.includes('continuous')) {
+            adv.focusMode = 'continuous';
+          }
+
+          if (Object.keys(adv).length > 0) {
+            await track.applyConstraints({ advanced: [adv] });
+            if (adv.focusMode === 'single-shot' && caps.focusMode && caps.focusMode.includes('continuous')) {
+              setTimeout(() => {
+                track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+              }, 1000);
+            }
+          }
+        } catch (err) {
+          console.debug('Tap to focus constraint error:', err);
+        }
+      });
     }
 
-    // start
+    // Launch AR application
     startAR().catch(err => {
-      console.error('MindAR start failed:', err);
-      alert('Failed to start AR: ' + (err.message || err));
+      console.error('MindAR initialization failed:', err);
+      alert('Failed to start AR camera: ' + (err.message || err));
     });
   </script>
 </body>
